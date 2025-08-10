@@ -1,0 +1,80 @@
+services:
+  db:
+    image: mysql:8.0
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp
+      MYSQL_PASSWORD: wppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootpass"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  wordpress:
+    image: wordpress:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wppass
+      WORDPRESS_DB_NAME: wordpress
+    ports:
+      - "8080:80"
+    volumes:
+      - wp_data:/var/www/html
+      # Mount the plugin from this repository directly into WordPress
+      - ./:/var/www/html/wp-content/plugins/classflow-pro:rw
+      # Auto-route WordPress mail through MailHog for local testing
+      - ./docker/mu-plugins:/var/www/html/wp-content/mu-plugins:rw
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    depends_on:
+      - db
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 256M
+    ports:
+      - "8081:80"
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP
+
+  wpcli:
+    image: wordpress:cli
+    profiles: ["tools"]
+    depends_on:
+      - wordpress
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wppass
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wp_data:/var/www/html
+      - ./:/var/www/html/wp-content/plugins/classflow-pro:rw
+      - ./docker/mu-plugins:/var/www/html/wp-content/mu-plugins:rw
+    entrypoint: ["wp"]
+    command: ["--info"]
+
+volumes:
+  db_data:
+  wp_data:
+
