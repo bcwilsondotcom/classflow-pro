@@ -6,7 +6,28 @@
   function withParams(url, params){ if (!params) return url; const qs=(params instanceof URLSearchParams)?params.toString():params; return url + (url.indexOf('?')>=0 ? '&' : '?') + qs; }
   function monthBounds(d){ const start=new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(),1)); const end=new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1,0,23,59,59)); return {start,end}; }
   function fmtDate(dt){ return dt.toISOString().slice(0,10); }
-  function fmtLocal(dt){ try{ return dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});}catch(e){ return dt.toISOString().slice(11,16);} }
+  function fmtLocal(dt, tz){
+    try{ return dt.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit', timeZone: tz || CFP_ADMIN.timezone || undefined}); }
+    catch(e){ return dt.toISOString().slice(11,16); }
+  }
+  // Compute offset (in minutes) for a given IANA timezone at a specific Date
+  function tzOffsetMinutes(date, timeZone){
+    try{
+      const dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone: timeZone || CFP_ADMIN.timezone || 'UTC',
+        hour12: false,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      const parts = dtf.formatToParts(date);
+      const map = {};
+      parts.forEach(p=>{ map[p.type]=p.value; });
+      const asUTC = Date.UTC(parseInt(map.year,10), parseInt(map.month,10)-1, parseInt(map.day,10), parseInt(map.hour,10), parseInt(map.minute,10), parseInt(map.second,10));
+      return (asUTC - date.getTime())/60000;
+    }catch(e){
+      return date.getTimezoneOffset();
+    }
+  }
   let selectedClass = null;
   async function loadFilters(){
     try{
@@ -85,7 +106,8 @@
       items.sort((a,b)=> a.start_time.localeCompare(b.start_time));
       items.forEach(r=>{
         const t=new Date(r.start_time+'Z');
-        const label=(r.class_title||('#'+r.class_id))+' — '+fmtLocal(t);
+        const tz = r.location_timezone || CFP_ADMIN.timezone;
+        const label=(r.class_title||('#'+r.class_id))+' — '+fmtLocal(t, tz);
         const pill=$('<div class="cfp-sched-pill" style="font-size:12px;border:1px solid #cbd5e1;border-radius:4px;padding:2px 4px;background:#f8fafc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;"></div>').text(label);
         pill.data('sched', r);
         dayWrap.append(pill);
@@ -124,11 +146,108 @@
       $box.append($tbl);
     }catch(e){ $box.html('<em>Failed to load attendees.</em>'); }
   }
+  async function createSchedules(){
+    const $msg = $('.cfp-msg').text('');
+    try{
+      const classId = parseInt($('.cfp-form-class').val()||0,10);
+      const instrId = parseInt($('.cfp-form-instructor').val()||0,10) || null;
+      const locId = parseInt($('.cfp-form-location').val()||0,10) || null;
+      const startDate = $('.cfp-form-start').val()||'';
+      const endDate = $('.cfp-form-end').val()||'';
+      const isPrivate = $('.cfp-form-private').is(':checked');
+      if (!classId || !startDate){ $msg.text('Pick a class and start date'); return; }
+      // Build a list of occurrences based on selected DOW inputs
+      const picks = [];
+      dayOrder.forEach(d=>{ if ($('.cfp-dow-ck[value="'+d+'"]').is(':checked')) { const t=$('.cfp-time-'+d).val()||'09:00'; picks.push({ dow: d, time: t }); } });
+      if (picks.length === 0) { $msg.text('Pick at least one day/time'); return; }
+      const start = new Date(startDate + 'T00:00:00');
+      const until = endDate ? new Date(endDate + 'T23:59:59') : new Date(start.getFullYear(), start.getMonth(), start.getDate());
+      const toSend = [];
+      for (let d=new Date(start); d<=until; d.setDate(d.getDate()+1)){
+        const dow = ['sun','mon','tue','wed','thu','fri','sat'][d.getDay()];
+        picks.filter(p=>p.dow===dow).forEach(p=>{
+          const [hh,mm] = p.time.split(':');
+          const localStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), parseInt(hh,10), parseInt(mm,10), 0);
+          // Convert from business timezone to UTC for storage
+          const offMin = tzOffsetMinutes(localStart, CFP_ADMIN.timezone);
+          const startUtc = new Date(localStart.getTime() - offMin*60000);
+          const duration = (selectedClass && selectedClass.duration_mins ? selectedClass.duration_mins : 60);
+          const endUtc = new Date(startUtc.getTime() + duration*60000);
+          toSend.push({
+            class_id: classId,
+            instructor_id: instrId,
+            location_id: locId,
+            start_time: startUtc.toISOString().slice(0,19).replace('T',' '),
+            end_time: endUtc.toISOString().slice(0,19).replace('T',' '),
+            is_private: isPrivate,
+            capacity: selectedClass && selectedClass.capacity ? selectedClass.capacity : 8,
+            price_cents: selectedClass && selectedClass.price_cents ? selectedClass.price_cents : 0,
+            currency: 'usd'
+          });
+        });
+      }
+      if (!toSend.length){ $msg.text('Nothing to create for the selected range'); return; }
+      $msg.text('Creating '+toSend.length+' schedule(s)...');
+      let created=0, failed=0;
+      for (const payload of toSend){
+        try{
+          const res = await fetch(CFP_ADMIN.adminRestUrl + 'schedules', { method:'POST', headers: headers(), body: JSON.stringify(payload) });
+          if (!res.ok) failed++; else created++;
+        }catch(e){ failed++; }
+      }
+      $msg.text('Created '+created+' schedule(s)' + (failed?(' — '+failed+' failed') : ''));
+      loadMonth(window.__cfpCurrent||new Date());
+    }catch(e){ $msg.text('Failed to create schedules'); }
+  }
+  async function applyScheduleChanges(){
+    const $m=$('#cfp-sched-modal'); const id=parseInt($m.data('id')||0,10); if(!id)return;
+    const instrId = parseInt($m.find('.cfp-edit-instructor').val()||0,10) || null;
+    const locId = parseInt($m.find('.cfp-edit-location').val()||0,10) || null;
+    const d=$m.find('.cfp-edit-date').val()||''; const t=$m.find('.cfp-edit-time').val()||'';
+    const update={}; if(instrId!==null) update.instructor_id=instrId; if(locId!==null) update.location_id=locId;
+    if (d && t){
+      // Interpret entered date/time as local, store as UTC
+      const local = new Date(d+'T'+t+':00');
+      const offMin = tzOffsetMinutes(local, CFP_ADMIN.timezone);
+      const utc = new Date(local.getTime() - offMin*60000);
+      const duration = (selectedClass && selectedClass.duration_mins ? selectedClass.duration_mins : 60);
+      const end = new Date(utc.getTime() + duration*60000);
+      update.start_time = utc.toISOString().slice(0,19).replace('T',' ');
+      update.end_time = end.toISOString().slice(0,19).replace('T',' ');
+    }
+    try{
+      const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id, { method:'PUT', headers: headers(), body: JSON.stringify(update) });
+      if (!res.ok){ alert('Failed to update'); return; }
+      $('#cfp-sched-modal').hide(); loadMonth(window.__cfpCurrent||new Date());
+    }catch(e){ alert('Failed to update'); }
+  }
+  async function cancelSchedule(){
+    const id=parseInt($('#cfp-sched-modal').data('id')||0,10); if(!id)return;
+    if (!confirm('Cancel this schedule?')) return;
+    try{
+      const note = ($('#cfp-sched-modal .cfp-sched-note').val()||'').toString();
+      const action = ($('#cfp-sched-modal .cfp-sched-action').val()||'auto').toString();
+      const notify = $('#cfp-sched-modal .cfp-sched-notify').is(':checked');
+      const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id+'/cancel', { method:'POST', headers: headers(), body: JSON.stringify({ action, note, notify }) });
+      const js=await res.json();
+      if (!res.ok){ alert(js && js.error ? js.error : 'Failed'); return; }
+      $('#cfp-sched-modal').hide(); loadMonth(window.__cfpCurrent||new Date());
+    }catch(e){ alert('Failed'); }
+  }
+  async function moveAttendees(){
+    const id=parseInt($('#cfp-sched-modal').data('id')||0,10); if(!id)return;
+    const target=parseInt($('#cfp-sched-modal .cfp-move-target').val()||0,10); if(!target){ alert('Pick a target schedule'); return; }
+    const notify = $('#cfp-sched-modal .cfp-sched-notify').is(':checked');
+    try{ const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id+'/reschedule_to', { method:'POST', headers: headers(), body: JSON.stringify({ target_schedule_id: target, notify }) }); if(!res.ok){ alert('Failed'); return; } $('#cfp-sched-modal').hide(); loadMonth(window.__cfpCurrent||new Date()); }catch(e){ alert('Failed'); }
+  }
   async function openScheduleModal(s){
     const $m=$('#cfp-sched-modal').css('display','flex');
     $m.data('id', s.id);
     $m.find('.cfp-sched-title').text((s.class_title||('#'+s.class_id)));
-    $m.find('.cfp-sched-info').text(new Date(s.start_time+'Z').toLocaleString());
+    try{
+      const tz = s.location_timezone || CFP_ADMIN.timezone;
+      $m.find('.cfp-sched-info').text(new Date(s.start_time+'Z').toLocaleString(undefined,{ timeZone: tz }));
+    }catch(e){ $m.find('.cfp-sched-info').text(new Date(s.start_time+'Z').toLocaleString()); }
     const $ei=$m.find('.cfp-edit-instructor').empty().append($('.cfp-form-instructor').html());
     const $el=$m.find('.cfp-edit-location').empty().append($('.cfp-form-location').html());
     if (s.instructor_id) $ei.val(String(s.instructor_id));
