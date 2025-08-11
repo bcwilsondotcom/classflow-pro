@@ -89,7 +89,7 @@ class Schedules
                             </button>
                             <button class="cfp-action-btn cfp-btn-cancel cfp-act-cancel">
                                 <span class="cfp-btn-icon">❌</span>
-                                <?php esc_html_e('Cancel Session', 'classflow-pro'); ?>
+                                <?php esc_html_e('Cancel This Session', 'classflow-pro'); ?>
                             </button>
                             <button class="cfp-action-btn cfp-btn-cancel-all cfp-act-cancel-all">
                                 <span class="cfp-btn-icon">🚫</span>
@@ -165,6 +165,16 @@ class Schedules
                                 <label class="cfp-form-label"><?php esc_html_e('Message to attendees (optional)', 'classflow-pro'); ?></label>
                                 <textarea class="cfp-sched-note cfp-form-control" rows="2" placeholder="<?php esc_attr_e('Add a personal message...', 'classflow-pro'); ?>"></textarea>
                             </div>
+                            
+                            <div class="cfp-form-actions" style="margin-top: 16px;">
+                                <button type="button" class="cfp-primary-btn cfp-confirm-cancel" style="background: #dc2626;">
+                                    <span class="cfp-btn-icon">❌</span>
+                                    <?php esc_html_e('Cancel This Session', 'classflow-pro'); ?>
+                                </button>
+                                <button type="button" class="cfp-secondary-btn cfp-cancel-cancel">
+                                    <?php esc_html_e('Keep Session', 'classflow-pro'); ?>
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Bulk Cancel Section -->
@@ -192,6 +202,16 @@ class Schedules
                                     <input type="checkbox" class="cfp-bulk-match-time" checked>
                                     <span><?php esc_html_e('Same time', 'classflow-pro'); ?></span>
                                 </label>
+                            </div>
+                            
+                            <div class="cfp-form-actions" style="margin-top: 16px;">
+                                <button type="button" class="cfp-primary-btn cfp-confirm-bulk-cancel" style="background: #dc2626;">
+                                    <span class="cfp-btn-icon">🚫</span>
+                                    <?php esc_html_e('Cancel Future Sessions', 'classflow-pro'); ?>
+                                </button>
+                                <button type="button" class="cfp-secondary-btn cfp-cancel-bulk">
+                                    <?php esc_html_e('Cancel', 'classflow-pro'); ?>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -249,6 +269,19 @@ class Schedules
         </div>
         
         <style>
+        /* Admin toolbar nav buttons should fit text, not icon size */
+        .cfp-admin-schedules .cfp-cal-prev,
+        .cfp-admin-schedules .cfp-cal-next {
+            width: auto;
+            height: auto;
+            border-radius: 4px;
+            padding: 6px 12px;
+            line-height: 1.2;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         /* Modal Overlay */
         .cfp-modal-overlay {
             position: fixed;

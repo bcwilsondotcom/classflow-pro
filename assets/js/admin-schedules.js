@@ -179,7 +179,7 @@
         
         // Individual action select
         const selId='act-'+r.id;
-        const $sel=$('<select class="cfp-form-control" id="'+selId+'" style="font-size:13px;padding:6px;"><option value="">Choose...</option><option value="cancel">Cancel</option><option value="refund">Refund</option><option value="credit">Credit</option></select>');
+        const $sel=$('<select class="cfp-form-control cfp-individual-action" id="'+selId+'" data-booking-id="'+r.id+'" style="font-size:13px;padding:6px;"><option value="">Choose...</option><option value="reschedule">Reschedule</option><option value="refund">Cancel + Refund</option><option value="credit">Cancel + Credit</option><option value="cancel">Cancel Only</option></select>');
         $row.append($('<div></div>').append($sel));
         
         // Individual apply button
@@ -195,21 +195,51 @@
         $btn.on('click', async function(){
           const action=$sel.val();
           if(!action) return;
-          const note=($m.find('.cfp-sched-note').val()||'').toString(); 
-          const body={ action, note, notify: $m.find('.cfp-sched-notify').is(':checked') };
-          $btn.prop('disabled', true).text('Working…');
-          try{ 
-            const resp=await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+r.id+'/admin_cancel', { method:'POST', headers: headers(), body: JSON.stringify(body) }); 
-            const js=await resp.json(); 
-            if(!resp.ok){ 
-              alert(js && js.message ? js.message : 'Failed'); 
-            } else { 
-              await refreshAttendees(id); 
-            } 
-          }catch(e){ 
-            alert('Failed'); 
-          } finally { 
-            $btn.prop('disabled', false).text('Apply'); 
+          
+          if(action === 'reschedule') {
+            // Show reschedule dropdown
+            const $moveTarget = $m.find('.cfp-move-target');
+            if($moveTarget.is(':visible') && $moveTarget.val()) {
+              const targetId = parseInt($moveTarget.val(), 10);
+              $btn.prop('disabled', true).text('Moving…');
+              try {
+                const resp = await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+r.id+'/reschedule', {
+                  method:'POST', headers: headers(),
+                  body: JSON.stringify({ target_schedule_id: targetId, notify: $m.find('.cfp-sched-notify').is(':checked') })
+                });
+                if(!resp.ok) {
+                  alert('Failed to reschedule');
+                } else {
+                  await refreshAttendees(id);
+                }
+              } catch(e) {
+                alert('Failed to reschedule');
+              } finally {
+                $btn.prop('disabled', false).text('Apply');
+              }
+            } else {
+              // Show the move target dropdown in the bulk actions bar
+              $m.find('.cfp-bulk-action').val('reschedule').trigger('change');
+              alert('Please select a target session from the dropdown above');
+            }
+          } else {
+            // Handle cancel/refund/credit
+            const note=($m.find('.cfp-sched-note').val()||'').toString(); 
+            const body={ action, note, notify: $m.find('.cfp-sched-notify').is(':checked') };
+            $btn.prop('disabled', true).text('Working…');
+            try{ 
+              const resp=await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+r.id+'/admin_cancel', { method:'POST', headers: headers(), body: JSON.stringify(body) }); 
+              const js=await resp.json(); 
+              if(!resp.ok){ 
+                alert(js && js.message ? js.message : 'Failed'); 
+              } else { 
+                await refreshAttendees(id); 
+              } 
+            }catch(e){ 
+              alert('Failed'); 
+            } finally { 
+              $btn.prop('disabled', false).text('Apply'); 
+            }
           }
         });
         $row.append($('<div></div>').append($btn));
@@ -309,7 +339,7 @@
   }
   async function cancelSchedule(){
     const id=parseInt($('#cfp-sched-modal').data('id')||0,10); if(!id)return;
-    if (!confirm('Cancel this schedule?')) return;
+    // Confirmation is now handled by the button click handler
     try{
       const note = ($('#cfp-sched-modal .cfp-sched-note').val()||'').toString();
       const action = ($('#cfp-sched-modal .cfp-sched-action').val()||'auto').toString();
@@ -318,7 +348,8 @@
       const js=await res.json();
       if (!res.ok){ alert(js && js.error ? js.error : 'Failed'); return; }
       $('#cfp-sched-modal').hide(); loadMonth(window.__cfpCurrent||new Date());
-    }catch(e){ alert('Failed'); }
+      alert('Session has been canceled successfully.');
+    }catch(e){ alert('Failed to cancel session'); }
   }
   async function openScheduleModal(s){
     const $m=$('#cfp-sched-modal').css('display','flex');
@@ -415,7 +446,6 @@
     if (d && t){ const start=new Date(d+'T'+t); const end=new Date(start.getTime() + (selectedClass && selectedClass.duration_mins ? selectedClass.duration_mins : 60)*60000); body.start_time = d+' '+t+':00'; body.end_time = end.toISOString().slice(0,19).replace('T',' '); }
     try{ const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id, { method:'PUT', headers: headers(), body: JSON.stringify(body) }); if (!res.ok){ const tx=await res.text(); throw new Error(tx||'Failed'); } $('#cfp-sched-modal .cfp-sched-msg').text('Updated'); await loadMonth(window.__cfpCurrent||new Date()); }catch(e){ $('#cfp-sched-modal .cfp-sched-msg').text('Update failed'); }
   }
-  async function cancelSchedule(){ const $m=$('#cfp-sched-modal'); const id=parseInt($m.data('id')||0,10); if (!id) return; if (!confirm('Cancel this session?')) return; const body={ notify: $m.find('.cfp-sched-notify').is(':checked'), note: ($m.find('.cfp-sched-note').val()||'').toString(), action: ($m.find('.cfp-sched-action').val()||'auto') }; try{ const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id+'/cancel', { method:'POST', headers: headers(), body: JSON.stringify(body) }); if (!res.ok){ const tx=await res.text(); throw new Error(tx||'Failed'); } $('#cfp-sched-modal .cfp-sched-msg').text('Session canceled'); await loadMonth(window.__cfpCurrent||new Date()); }catch(e){ $('#cfp-sched-modal .cfp-sched-msg').text('Cancel failed'); } }
   async function createSchedules(){
     const $msg=$('.cfp-sched-panel .cfp-msg').text('');
     const classId=parseInt($('.cfp-form-class').val()||0,10);
@@ -469,8 +499,9 @@
     $(document).on('click', '#cfp-sched-modal .cfp-act-update', function(){ applyScheduleChanges(); });
     $(document).on('click', '#cfp-sched-modal .cfp-act-cancel', function(){ 
       $('#cfp-sched-modal .cfp-cancel-settings').slideDown();
+      $('#cfp-sched-modal .cfp-bulk-cancel-section').hide();
       $('#cfp-sched-modal .cfp-edit-section').slideUp();
-      cancelSchedule(); 
+      // Don't call cancelSchedule here - wait for user to configure and click confirm button
     });
     
     // Quick action handlers
@@ -487,6 +518,63 @@
       $('#cfp-sched-modal .cfp-cancel-settings').slideDown();
       $('#cfp-sched-modal .cfp-bulk-cancel-section').slideDown();
       $('#cfp-sched-modal .cfp-edit-section').slideUp();
+    });
+    
+    // Cancellation confirmation buttons
+    $(document).on('click', '#cfp-sched-modal .cfp-confirm-cancel', function(){
+      if (confirm('Are you sure you want to cancel this session? This action cannot be undone.')) {
+        cancelSchedule();
+      }
+    });
+    
+    $(document).on('click', '#cfp-sched-modal .cfp-cancel-cancel', function(){
+      $('#cfp-sched-modal .cfp-cancel-settings').slideUp();
+    });
+    
+    $(document).on('click', '#cfp-sched-modal .cfp-confirm-bulk-cancel', async function(){
+      if (confirm('Are you sure you want to cancel multiple future sessions? This action cannot be undone.')) {
+        // Execute bulk cancel logic
+        const $m=$('#cfp-sched-modal');
+        const schedData = $m.data('sched') || {};
+        const classId = parseInt(schedData.class_id||0,10);
+        if (!classId) { alert('Unable to determine class id.'); return; }
+        const notify = $m.find('.cfp-sched-notify').is(':checked');
+        const action = ($m.find('.cfp-sched-action').val()||'auto').toString();
+        const note = ($m.find('.cfp-sched-note').val()||'').toString();
+        const onlyLoc = $m.find('.cfp-bulk-only-location').is(':checked');
+        const matchTime = $m.find('.cfp-bulk-match-time').is(':checked');
+        const from = ($m.find('.cfp-bulk-from').val()||'');
+        const to = ($m.find('.cfp-bulk-to').val()||'');
+        
+        try{
+          const body = { notify, action, note };
+          if (from) body.date_from = from + ' 00:00:00';
+          if (to) body.date_to = to + ' 23:59:59';
+          if (onlyLoc && schedData.location_id) body.location_id = parseInt(schedData.location_id,10);
+          if (matchTime){
+            try{
+              const tz = schedData.location_timezone || CFP_ADMIN.timezone;
+              const dt = new Date(schedData.start_time+'Z');
+              const weekday = new Date(dt.toLocaleString('en-US', { timeZone: tz })).getDay();
+              const timeHm = dt.toLocaleTimeString('en-GB', { timeZone: tz, hour:'2-digit', minute:'2-digit', hour12:false });
+              body.only_weekday = weekday; 
+              body.only_time_hm = timeHm;
+            }catch(e){}
+          }
+          const res = await fetch(CFP_ADMIN.adminRestUrl + 'classes/'+classId+'/cancel_future', { 
+            method:'POST', headers: headers(), body: JSON.stringify(body) 
+          });
+          const js = await res.json();
+          if (!res.ok){ alert(js && js.error ? js.error : 'Failed to cancel'); return; }
+          alert('Canceled '+(js.counts && js.counts.processed ? js.counts.processed : 0)+' session(s).');
+          $('#cfp-sched-modal').hide();
+          loadMonth(window.__cfpCurrent||new Date());
+        }catch(e){ alert('Failed to cancel future sessions'); }
+      }
+    });
+    
+    $(document).on('click', '#cfp-sched-modal .cfp-cancel-bulk', function(){
+      $('#cfp-sched-modal .cfp-bulk-cancel-section').slideUp();
     });
     
     // Attendee selection handlers
@@ -567,44 +655,6 @@
       $btn.prop('disabled', false).text('Apply');
       await refreshAttendees(parseInt($m.data('id')||0,10));
     });
-    $(document).on('click', '#cfp-sched-modal .cfp-act-cancel-all', async function(){
-    const $m=$('#cfp-sched-modal');
-    const schedData = $m.data('sched') || {};
-    const classId = parseInt(schedData.class_id||0,10);
-    if (!classId) { alert('Unable to determine class id.'); return; }
-    const notify = $('#cfp-sched-modal .cfp-sched-notify').is(':checked');
-    const action = ($('#cfp-sched-modal .cfp-sched-action').val()||'auto').toString();
-    const note = ($('#cfp-sched-modal .cfp-sched-note').val()||'').toString();
-    const onlyLoc = $('#cfp-sched-modal .cfp-bulk-only-location').is(':checked');
-    const matchTime = $('#cfp-sched-modal .cfp-bulk-match-time').is(':checked');
-    const from = ($('#cfp-sched-modal .cfp-bulk-from').val()||'');
-    const to = ($('#cfp-sched-modal .cfp-bulk-to').val()||'');
-    if (!confirm('Cancel matching future sessions for this class? This will refund/credit attendees per selected action.')) return;
-    try{
-      const body = { notify, action, note };
-      if (from) body.date_from = from + ' 00:00:00';
-      if (to) body.date_to = to + ' 23:59:59';
-      if (onlyLoc && schedData.location_id) body.location_id = parseInt(schedData.location_id,10);
-      if (matchTime){
-        // Derive weekday/time in the schedule's location timezone
-        try{
-          const tz = schedData.location_timezone || CFP_ADMIN.timezone;
-          const dt = new Date(schedData.start_time+'Z');
-          const parts = dt.toLocaleString('en-CA', { timeZone: tz, hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-          // parts like 2024-08-11, 07:00 – safer: compute weekday via toLocaleDateString with weekday option
-          const weekday = new Date(dt.toLocaleString('en-US', { timeZone: tz })).getDay(); // 0-6, 0=Sun
-          const timeHm = dt.toLocaleTimeString('en-GB', { timeZone: tz, hour:'2-digit', minute:'2-digit', hour12:false });
-          body.only_weekday = weekday; body.only_time_hm = timeHm;
-        }catch(e){}
-      }
-      const res = await fetch(CFP_ADMIN.adminRestUrl + 'classes/'+classId+'/cancel_future', { method:'POST', headers: headers(), body: JSON.stringify(body) });
-      const js = await res.json();
-      if (!res.ok){ alert(js && js.error ? js.error : 'Failed to cancel'); return; }
-      alert('Canceled '+(js.counts && js.counts.processed ? js.counts.processed : 0)+' session(s).');
-      $('#cfp-sched-modal').hide();
-      loadMonth(window.__cfpCurrent||new Date());
-    }catch(e){ alert('Failed'); }
-  });
   }
   $(async function(){ 
     try {
