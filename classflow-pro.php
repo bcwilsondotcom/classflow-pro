@@ -2,7 +2,7 @@
 /**
  * Plugin Name: ClassFlow Pro — Pilates Studio Manager
  * Description: End-to-end Pilates studio management: classes, instructors, schedules, bookings, packages/credits, Stripe/Stripe Connect payments with tax, QuickBooks Online accounting, and Elementor widgets for client booking.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: ClassFlow Pro
  * Requires at least: 6.0
  * Requires PHP: 8.0
@@ -35,7 +35,7 @@ define('CFP_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Bootstrap plugin
 if (!defined('CFP_DB_VERSION')) {
-    define('CFP_DB_VERSION', '1.0.0');
+    define('CFP_DB_VERSION', '1.1.0');
 }
 add_action('plugins_loaded', function () {
     // Check minimal requirements

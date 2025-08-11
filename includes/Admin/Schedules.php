@@ -60,6 +60,56 @@ class Schedules
 
         echo '</div>'; // layout
         echo '</div>'; // wrap
+
+        // Modal for schedule details/actions
+        ?>
+        <div id="cfp-sched-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;align-items:center;justify-content:center;">
+            <div style="background:#fff;border-radius:8px;max-width:640px;width:95%;padding:16px;">
+                <h2 style="margin-top:0;"><span class="cfp-sched-title"><?php esc_html_e('Schedule Details', 'classflow-pro'); ?></span></h2>
+                <div class="cfp-sched-info" style="margin-bottom:12px;color:#475569;"></div>
+                <div class="cfp-sched-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+                    <button class="button cfp-act-preview"><?php esc_html_e('Preview Email', 'classflow-pro'); ?></button>
+                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="cfp-sched-notify" checked> <?php esc_html_e('Email attendees', 'classflow-pro'); ?></label>
+                    <label><?php esc_html_e('Attendee action', 'classflow-pro'); ?>
+                        <select class="cfp-sched-action">
+                            <option value="auto"><?php esc_html_e('Auto (refund if paid, return credit if used)', 'classflow-pro'); ?></option>
+                            <option value="refund"><?php esc_html_e('Refund', 'classflow-pro'); ?></option>
+                            <option value="credit"><?php esc_html_e('Credit', 'classflow-pro'); ?></option>
+                            <option value="cancel"><?php esc_html_e('Cancel only', 'classflow-pro'); ?></option>
+                        </select>
+                    </label>
+                    <button class="button cfp-act-cancel"><?php esc_html_e('Cancel Session', 'classflow-pro'); ?></button>
+                    <button class="button cfp-act-refresh"><?php esc_html_e('Refresh Attendees', 'classflow-pro'); ?></button>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label><?php esc_html_e('Email message (optional)', 'classflow-pro'); ?><br>
+                        <textarea class="cfp-sched-note" rows="3" style="width:100%;"></textarea>
+                    </label>
+                </div>
+                <div class="cfp-sched-edit" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                    <label><?php esc_html_e('Instructor', 'classflow-pro'); ?> <select class="cfp-edit-instructor"></select></label>
+                    <label><?php esc_html_e('Location', 'classflow-pro'); ?> <select class="cfp-edit-location"></select></label>
+                    <label><?php esc_html_e('New Date', 'classflow-pro'); ?> <input type="date" class="cfp-edit-date"></label>
+                    <label><?php esc_html_e('New Time', 'classflow-pro'); ?> <input type="time" class="cfp-edit-time"></label>
+                    <button class="button button-primary cfp-act-update"><?php esc_html_e('Apply Changes', 'classflow-pro'); ?></button>
+                </div>
+                <div class="cfp-sched-move" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                    <label><?php esc_html_e('Move attendees to', 'classflow-pro'); ?> <select class="cfp-move-target"></select></label>
+                    <button class="button cfp-act-move"><?php esc_html_e('Move Attendees', 'classflow-pro'); ?></button>
+                </div>
+                <div class="cfp-sched-preview" style="display:none;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:8px;">
+                    <strong><?php esc_html_e('Email Preview', 'classflow-pro'); ?>:</strong>
+                    <div class="cfp-prev-subj" style="margin:6px 0;"></div>
+                    <div class="cfp-prev-body" style="background:#fff;padding:8px;border-radius:4px;"></div>
+                </div>
+                <div class="cfp-sched-msg" style="margin-bottom:8px;color:#0f766e;"></div>
+                <div class="cfp-sched-attendees" style="max-height:240px;overflow:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;">
+                    <em><?php esc_html_e('No attendees yet.', 'classflow-pro'); ?></em>
+                </div>
+                <div style="margin-top:12px;text-align:right;"><button class="button cfp-act-close"><?php esc_html_e('Close', 'classflow-pro'); ?></button></div>
+            </div>
+        </div>
+        <?php
     }
     
     private static function render_add_form($preset_class_id = 0): void

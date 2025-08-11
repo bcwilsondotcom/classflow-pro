@@ -13,5 +13,6 @@ class Module
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\IntakeFormWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\CalendarBookingWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\StepBookingWidget());
+        \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\CheckoutSuccessWidget());
     }
 }

@@ -8,6 +8,7 @@ use ClassFlowPro\Admin\Reports;
 use ClassFlowPro\Admin\Payouts;
 use ClassFlowPro\Shortcodes;
 use ClassFlowPro\Privacy\Exporters as PrivacyExporters;
+use ClassFlowPro\Notifications\Reminders as Reminders;
 
 class Plugin
 {
@@ -47,6 +48,9 @@ class Plugin
 
         // Privacy exporters/erasers
         PrivacyExporters::register();
+
+        // Notifications: schedule reminders
+        Reminders::register();
     }
 
     public function register_assets(): void
@@ -61,8 +65,14 @@ class Plugin
             'siteName' => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
             'businessTimezone' => Admin\Settings::get('business_timezone', (function_exists('wp_timezone_string') ? wp_timezone_string() : 'UTC')),
             'useStripeCheckout' => (bool) Admin\Settings::get('stripe_use_checkout', 0),
+            'intakePageUrl' => esc_url_raw(Admin\Settings::get('intake_page_url', '')),
+            'isLoggedIn' => is_user_logged_in(),
         ];
         wp_localize_script('cfp-booking', 'CFP_DATA', $settings);
+        // Share same data to other frontend scripts if enqueued
+        wp_localize_script('cfp-step', 'CFP_DATA', $settings);
+        wp_localize_script('cfp-intake', 'CFP_DATA', $settings);
+        wp_localize_script('cfp-checkout-success', 'CFP_DATA', $settings);
     }
 
     public function enqueue_admin_assets(): void

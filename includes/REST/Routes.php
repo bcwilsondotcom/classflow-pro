@@ -93,6 +93,13 @@ class Routes
             },
         ]);
 
+        // Admin: cancel a single booking with action (refund|credit|cancel|auto)
+        register_rest_route('classflow-pro/v1', '/bookings/(?P<id>\\d+)/admin_cancel', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'admin_cancel_booking'],
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
+
         // Private session request
         register_rest_route('classflow/v1', '/private/request', [
             'methods' => 'POST',
@@ -125,6 +132,13 @@ class Routes
         register_rest_route('classflow/v1', '/stripe/webhook', [
             'methods' => 'POST',
             'callback' => [StripeWebhooks::class, 'handle'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        // Inbound SMS webhook (Twilio): update opt-in status based on STOP/START
+        register_rest_route('classflow/v1', '/sms/twilio_webhook', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'sms_twilio_webhook'],
             'permission_callback' => '__return_true',
         ]);
 
@@ -239,6 +253,8 @@ class Routes
             $where[] = 'start_time <= %s';
             $params[] = gmdate('Y-m-d H:i:s', strtotime($req['date_to']));
         }
+        // Hide cancelled schedules by default
+        $where[] = "COALESCE(status,'active') <> 'cancelled'";
         $where_sql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
         $sql = "SELECT * FROM $table $where_sql ORDER BY start_time ASC LIMIT 500";
         $prepared = $params ? $wpdb->prepare($sql, $params) : $sql;
@@ -248,6 +264,11 @@ class Routes
             $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
             $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
+            // Add current bookings count for admin calendar filtering
+            try {
+                $b_tbl = $wpdb->prefix . 'cfp_bookings';
+                $row['booked_count'] = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $b_tbl WHERE schedule_id = %d AND status IN ('pending','confirmed')", (int)$row['id']));
+            } catch (\Throwable $e) { $row['booked_count'] = 0; }
         }
         return rest_ensure_response($rows);
     }
@@ -264,6 +285,7 @@ class Routes
         if ($date_to) {
             $where .= $wpdb->prepare(" AND s.start_time <= %s", $date_to);
         }
+        $where .= " AND COALESCE(s.status,'active') <> 'cancelled'";
         $sql = "SELECT s.*, (
                     s.capacity - (SELECT COUNT(*) FROM $b bb WHERE bb.schedule_id = s.id AND bb.status IN ('pending','confirmed'))
                 ) AS seats_left
@@ -335,14 +357,46 @@ class Routes
             'name' => sanitize_text_field($data['name'] ?? ''),
             'coupon_code' => isset($data['coupon_code']) ? sanitize_text_field($data['coupon_code']) : null,
         ];
-        // Intake requirement
+
+        // Booking access policy
+        $require_login = (bool) \ClassFlowPro\Admin\Settings::get('require_login_to_book', 0);
+        $auto_create = (bool) \ClassFlowPro\Admin\Settings::get('auto_create_user_on_booking', 1);
+        if ($require_login && empty($customer['user_id'])) {
+            return new WP_Error('cfp_auth_required', __('Please log in to book.', 'classflow-pro'), ['status' => 401]);
+        }
+        if (!$customer['user_id'] && $auto_create && $customer['email']) {
+            // Find or create a WordPress user by email
+            $existing = get_user_by('email', $customer['email']);
+            if ($existing) {
+                $customer['user_id'] = (int)$existing->ID;
+            } else {
+                $username = sanitize_user(current(explode('@', $customer['email'])));
+                if (username_exists($username)) { $username .= '_' . wp_generate_password(4, false, false); }
+                $pass = !empty($data['password']) ? (string)$data['password'] : wp_generate_password(20, false, false);
+                $uid = wp_create_user($username, $pass, $customer['email']);
+                if (!is_wp_error($uid)) {
+                    $customer['user_id'] = (int)$uid;
+                    if (!empty($customer['name'])) {
+                        wp_update_user(['ID' => $uid, 'display_name' => $customer['name']]);
+                    }
+                    // If password was generated (not provided), notify user to set it
+                    if (empty($data['password']) && function_exists('wp_send_new_user_notifications')) { wp_send_new_user_notifications($uid, 'user'); }
+                }
+            }
+        }
+
+        // If we have a user_id, optionally store phone and SMS preference from the booking form
+        if (!empty($customer['user_id'])) {
+            if (!empty($data['phone'])) { update_user_meta((int)$customer['user_id'], 'cfp_phone', sanitize_text_field($data['phone'])); }
+            if (isset($data['sms_opt_in'])) { update_user_meta((int)$customer['user_id'], 'cfp_sms_opt_in', !empty($data['sms_opt_in']) ? 1 : 0); }
+        }
+        // Intake requirement: if enabled and user account exists, flag but do not block booking
+        $intake_required = false;
         if ($customer['user_id'] && \ClassFlowPro\Admin\Settings::get('require_intake', 0)) {
             global $wpdb;
             $intake = $wpdb->prefix . 'cfp_intake_forms';
             $has = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $intake WHERE user_id = %d", (int)$customer['user_id']));
-            if ($has <= 0) {
-                return new WP_Error('cfp_intake_required', __('Intake form required before booking', 'classflow-pro'), ['status' => 403]);
-            }
+            if ($has <= 0) { $intake_required = true; }
         }
         if (!$schedule_id || (!$customer['user_id'] && empty($customer['email']))) {
             return new WP_Error('cfp_invalid_request', __('Missing schedule or customer info', 'classflow-pro'), ['status' => 400]);
@@ -351,6 +405,7 @@ class Routes
         if (is_wp_error($result)) {
             return $result;
         }
+        $result['intake_required'] = $intake_required;
         return rest_ensure_response($result);
     }
 
@@ -537,6 +592,7 @@ class Routes
             'display_name' => $u->display_name,
             'email' => $u->user_email,
             'phone' => get_user_meta($u->ID, 'cfp_phone', true) ?: '',
+            'sms_opt_in' => (int)get_user_meta($u->ID, 'cfp_sms_opt_in', true) === 1,
             'dob' => get_user_meta($u->ID, 'cfp_dob', true) ?: '',
             'emergency_name' => get_user_meta($u->ID, 'cfp_emergency_name', true) ?: '',
             'emergency_phone' => get_user_meta($u->ID, 'cfp_emergency_phone', true) ?: '',
@@ -550,6 +606,7 @@ class Routes
         $data = $req->get_json_params();
         $fields = [
             'cfp_phone' => sanitize_text_field($data['phone'] ?? ''),
+            'cfp_sms_opt_in' => !empty($data['sms_opt_in']) ? 1 : 0,
             'cfp_dob' => sanitize_text_field($data['dob'] ?? ''),
             'cfp_emergency_name' => sanitize_text_field($data['emergency_name'] ?? ''),
             'cfp_emergency_phone' => sanitize_text_field($data['emergency_phone'] ?? ''),
@@ -632,6 +689,18 @@ class Routes
         return rest_ensure_response($result);
     }
 
+    public static function admin_cancel_booking(WP_REST_Request $req)
+    {
+        $id = (int)$req['id'];
+        $data = $req->get_json_params();
+        $action = isset($data['action']) ? sanitize_text_field($data['action']) : 'auto';
+        $notify = !empty($data['notify']);
+        $note = isset($data['note']) ? sanitize_textarea_field($data['note']) : '';
+        $res = \ClassFlowPro\Booking\Manager::admin_cancel_booking($id, [ 'action' => $action, 'notify' => $notify, 'note' => $note ]);
+        if (is_wp_error($res)) return $res;
+        return rest_ensure_response($res);
+    }
+
     public static function reschedule_booking(WP_REST_Request $req)
     {
         $user_id = get_current_user_id();
@@ -642,6 +711,23 @@ class Routes
         $result = \ClassFlowPro\Booking\Manager::reschedule($id, $user_id, $schedule_id);
         if (is_wp_error($result)) return $result;
         return rest_ensure_response($result);
+    }
+
+    public static function sms_twilio_webhook(WP_REST_Request $req)
+    {
+        $from = sanitize_text_field($req->get_param('From'));
+        $body = strtoupper(trim((string)$req->get_param('Body')));
+        if (!$from || !$body) return rest_ensure_response(['ok' => true]);
+        global $wpdb; $um=$wpdb->usermeta;
+        $user_id = (int)$wpdb->get_var($wpdb->prepare("SELECT user_id FROM $um WHERE meta_key='cfp_phone' AND meta_value=%s LIMIT 1", $from));
+        if ($user_id > 0) {
+            if (in_array($body, ['STOP','STOPALL','UNSUBSCRIBE','CANCEL','END'], true)) {
+                update_user_meta($user_id, 'cfp_sms_opt_in', 0);
+            } elseif (in_array($body, ['START','UNSTOP','YES'], true)) {
+                update_user_meta($user_id, 'cfp_sms_opt_in', 1);
+            }
+        }
+        return rest_ensure_response(['ok' => true]);
     }
 
     // iCal schedule feed

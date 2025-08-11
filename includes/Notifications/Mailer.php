@@ -5,6 +5,18 @@ use ClassFlowPro\Admin\Settings;
 
 class Mailer
 {
+    public static function build_canceled_email(string $class_title, string $start_time, string $status, string $note = ''): array
+    {
+        [$subject, $body] = self::get_template('canceled', 'canceled', [
+            'class_title' => $class_title,
+            'start_time' => $start_time,
+            'status' => $status,
+        ]);
+        if ($note !== '') {
+            $body .= '<hr><p>' . wp_kses_post($note) . '</p>';
+        }
+        return [$subject, $body];
+    }
     private static function get_template(string $subject_key, string $body_key, array $vars): array
     {
         $settings = get_option('cfp_settings', []);
@@ -89,9 +101,11 @@ class Mailer
                 if ($email) self::send($email, $subject, $body);
             }
         }
+        // SMS
+        try { \ClassFlowPro\Notifications\Sms::booking_confirmed($booking_id); } catch (\Throwable $e) {}
     }
 
-    public static function booking_canceled(int $booking_id, string $status): void
+    public static function booking_canceled(int $booking_id, string $status, string $note = ''): void
     {
         if (!Settings::get('notify_customer', 1) && !Settings::get('notify_admin', 1)) return;
         global $wpdb;
@@ -110,6 +124,7 @@ class Mailer
             'start_time' => $start,
             'status' => $status,
         ]);
+        if ($note !== '') { $body .= '<hr><p>' . wp_kses_post($note) . '</p>'; }
         if (Settings::get('notify_customer', 1)) {
             $to = self::recipients($b['user_id'] ? (int)$b['user_id'] : null, $b['customer_email']);
             if ($to) self::send($to, $subject, $body);
@@ -122,6 +137,8 @@ class Mailer
                 if ($email) self::send($email, $subject, $body);
             }
         }
+        // SMS
+        try { \ClassFlowPro\Notifications\Sms::booking_canceled($booking_id, $status); } catch (\Throwable $e) {}
     }
 
     public static function booking_rescheduled(int $booking_id, int $old_schedule_id): void
@@ -157,6 +174,8 @@ class Mailer
                 if ($email) self::send($email, $subject, $body);
             }
         }
+        // SMS
+        try { \ClassFlowPro\Notifications\Sms::booking_rescheduled($booking_id, $old_schedule_id); } catch (\Throwable $e) {}
     }
 
     public static function waitlist_open(int $schedule_id, string $email): void
@@ -174,5 +193,24 @@ class Mailer
             'amount' => __('Open Seat', 'classflow-pro'),
         ]);
         self::send($email, $subject, '<p>' . esc_html__('A spot just opened in your waitlisted class. Please book now to secure it:', 'classflow-pro') . '</p>' . $body);
+        // If we know the user_id from waitlist entry, an SMS may be sent by higher-level caller
+    }
+
+    public static function booking_reminder(int $booking_id): void
+    {
+        if (!Settings::get('notify_customer', 1) && !Settings::get('notify_admin', 1)) return;
+        global $wpdb; $b=$wpdb->prefix.'cfp_bookings'; $s=$wpdb->prefix.'cfp_schedules';
+        $bk=$wpdb->get_row($wpdb->prepare("SELECT * FROM $b WHERE id=%d", $booking_id), ARRAY_A); if(!$bk) return;
+        $sc=$wpdb->get_row($wpdb->prepare("SELECT * FROM $s WHERE id=%d", (int)$bk['schedule_id']), ARRAY_A); if(!$sc) return;
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$sc['class_id']);
+        $tz = \ClassFlowPro\Utils\Timezone::for_location(!empty($sc['location_id'])?(int)$sc['location_id']:null);
+        $start = \ClassFlowPro\Utils\Timezone::format_local($sc['start_time'], $tz);
+        $price = ((int)$bk['amount_cents'] > 0) ? number_format_i18n($bk['amount_cents']/100, 2) . ' ' . strtoupper($bk['currency']) : __('Credit', 'classflow-pro');
+        [$subject,$body] = self::get_template('confirmed', 'confirmed', [ 'class_title'=>$title, 'start_time'=>$start, 'amount'=>$price ]);
+        if (Settings::get('notify_customer', 1)) {
+            $to = self::recipients($bk['user_id'] ? (int)$bk['user_id'] : null, $bk['customer_email']);
+            if ($to) self::send($to, '[Reminder] ' . $subject, $body);
+        }
+        try { \ClassFlowPro\Notifications\Sms::booking_reminder($booking_id); } catch (\Throwable $e) {}
     }
 }

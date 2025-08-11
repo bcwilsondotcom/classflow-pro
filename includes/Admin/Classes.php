@@ -332,10 +332,23 @@ class Classes
         if (!current_user_can('delete_posts')) {
             wp_die(esc_html__('Permission denied.', 'classflow-pro'));
         }
-        // Cascade delete schedules: cancel bookings, delete waitlists, remove schedules
+        // Block deletion if there are any future bookings for this class
         global $wpdb;
+        $now = gmdate('Y-m-d H:i:s');
         $s_tbl = $wpdb->prefix . 'cfp_schedules';
         $b_tbl = $wpdb->prefix . 'cfp_bookings';
+        $future_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $b_tbl b JOIN $s_tbl s ON s.id=b.schedule_id WHERE s.class_id = %d AND s.start_time >= %s AND b.status IN ('pending','confirmed')",
+            $id, $now
+        ));
+        if ($future_count > 0) {
+            $url = add_query_arg(['error' => 'cannot_delete_booked', 'count' => $future_count], admin_url('admin.php?page=classflow-pro-classes'));
+            if (!headers_sent()) { wp_safe_redirect($url); exit; }
+            echo '<script>window.location.href = ' . json_encode($url) . '</script>';
+            echo '<noscript><meta http-equiv="refresh" content="0;url=' + esc_url($url) + '"></noscript>';
+            exit;
+        }
+        // No future bookings: cascade delete schedules and related rows, then delete the class
         $w_tbl = $wpdb->prefix . 'cfp_waitlist';
         $schedule_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM $s_tbl WHERE class_id = %d", $id));
         if (!empty($schedule_ids)) {
@@ -357,6 +370,15 @@ class Classes
     private static function admin_notice(): void
     {
         $message = isset($_GET['message']) ? sanitize_key($_GET['message']) : '';
+        $error = isset($_GET['error']) ? sanitize_key($_GET['error']) : '';
+        if ($error === 'cannot_delete_booked') {
+            $count = isset($_GET['count']) ? (int) $_GET['count'] : 0;
+            $schedules_link = admin_url('admin.php?page=classflow-pro-schedules');
+            echo '<div class="notice notice-error is-dismissible"><p>'
+                . sprintf(esc_html__('Cannot delete this class: %d upcoming booking(s) exist. Please cancel or reschedule them first.', 'classflow-pro'), max(0, $count))
+                . ' <a href="' + esc_url($schedules_link) + '">' . esc_html__('Open Schedules', 'classflow-pro') . '</a>'
+                . '</p></div>';
+        }
         $map = [
             'created' => __('Class created successfully.', 'classflow-pro'),
             'updated' => __('Class updated successfully.', 'classflow-pro'),

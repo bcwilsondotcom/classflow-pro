@@ -25,6 +25,9 @@ class Activator
             currency VARCHAR(10) NOT NULL DEFAULT 'usd',
             is_private TINYINT(1) NOT NULL DEFAULT 0,
             google_event_id VARCHAR(191) NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            cancel_note TEXT NULL,
+            cancelled_at DATETIME NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
@@ -33,7 +36,8 @@ class Activator
             KEY location_id (location_id),
             KEY google_event_id (google_event_id),
             KEY start_time (start_time),
-            KEY is_private (is_private)
+            KEY is_private (is_private),
+            KEY status (status)
         ) $charset_collate;";
 
         $tables[] = "CREATE TABLE {$wpdb->prefix}cfp_bookings (
@@ -268,6 +272,118 @@ class Activator
         ) $charset_collate;";
         dbDelta($notes_sql);
 
+        // Add missing performance indexes and define foreign key relationships.
+        // Since dbDelta() does not manage FKs, apply them explicitly and ignore errors if they already exist.
+        try {
+            // Ensure InnoDB engine for FK support (ignore if no-op)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_classes ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_instructors ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_locations ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_resources ENGINE=InnoDB");
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_coupons ENGINE=InnoDB");
+        } catch (\Throwable $e) {}
+
+        // Indexes
+        // Columns that may not exist on older dev DBs
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD COLUMN cancel_note TEXT NULL"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD COLUMN cancelled_at DATETIME NULL"); } catch (\Throwable $e) {}
+        // Indexes
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD INDEX idx_schedules_class_start (class_id, start_time)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD INDEX idx_schedules_instr_start (instructor_id, start_time)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD INDEX idx_schedules_resource (resource_id)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules ADD INDEX idx_schedules_status (status)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ADD INDEX idx_bookings_sched_status (schedule_id, status)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ADD INDEX idx_bookings_customer_email (customer_email)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD INDEX idx_waitlist_created (created_at)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_instructors ADD UNIQUE INDEX uniq_instructors_email (email)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_private_requests ADD INDEX idx_private_requests_instr_status (instructor_id, status)"); } catch (\Throwable $e) {}
+
+        // Foreign keys
+        try {
+            // Schedules -> Classes
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules
+                ADD CONSTRAINT fk_cfp_schedules_class
+                FOREIGN KEY (class_id)
+                REFERENCES {$wpdb->prefix}cfp_classes(id)
+                ON DELETE CASCADE ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Schedules -> Instructors (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules
+                ADD CONSTRAINT fk_cfp_schedules_instructor
+                FOREIGN KEY (instructor_id)
+                REFERENCES {$wpdb->prefix}cfp_instructors(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Schedules -> Locations (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules
+                ADD CONSTRAINT fk_cfp_schedules_location
+                FOREIGN KEY (location_id)
+                REFERENCES {$wpdb->prefix}cfp_locations(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Schedules -> Resources (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_schedules
+                ADD CONSTRAINT fk_cfp_schedules_resource
+                FOREIGN KEY (resource_id)
+                REFERENCES {$wpdb->prefix}cfp_resources(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Bookings -> Schedules
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings
+                ADD CONSTRAINT fk_cfp_bookings_schedule
+                FOREIGN KEY (schedule_id)
+                REFERENCES {$wpdb->prefix}cfp_schedules(id)
+                ON DELETE RESTRICT ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Waitlist -> Schedules
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist
+                ADD CONSTRAINT fk_cfp_waitlist_schedule
+                FOREIGN KEY (schedule_id)
+                REFERENCES {$wpdb->prefix}cfp_schedules(id)
+                ON DELETE CASCADE ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Private Requests -> Instructors (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_private_requests
+                ADD CONSTRAINT fk_cfp_private_requests_instructor
+                FOREIGN KEY (instructor_id)
+                REFERENCES {$wpdb->prefix}cfp_instructors(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Resources -> Locations (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_resources
+                ADD CONSTRAINT fk_cfp_resources_location
+                FOREIGN KEY (location_id)
+                REFERENCES {$wpdb->prefix}cfp_locations(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Classes -> Locations (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_classes
+                ADD CONSTRAINT fk_cfp_classes_default_location
+                FOREIGN KEY (default_location_id)
+                REFERENCES {$wpdb->prefix}cfp_locations(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Bookings -> Coupons (nullable)
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings
+                ADD CONSTRAINT fk_cfp_bookings_coupon
+                FOREIGN KEY (coupon_id)
+                REFERENCES {$wpdb->prefix}cfp_coupons(id)
+                ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+
 
         // Default options
         add_option('cfp_settings', [
@@ -288,6 +404,19 @@ class Activator
             'notify_customer' => 1,
             'notify_admin' => 1,
             'notify_instructor' => 0,
+            'require_login_to_book' => 0,
+            'auto_create_user_on_booking' => 1,
+            'notify_sms_customer' => 0,
+            'notify_sms_instructor' => 0,
+            'twilio_account_sid' => '',
+            'twilio_auth_token' => '',
+            'twilio_from_number' => '',
+            'reminder_hours_before' => '24,2',
+            'sms_confirmed_body' => '[{site}] Confirmed: {class_title} @ {start_time}.',
+            'sms_canceled_body' => '[{site}] {status}: {class_title} @ {start_time}.',
+            'sms_rescheduled_body' => '[{site}] Rescheduled: {class_title} now @ {start_time}.',
+            'sms_waitlist_body' => '[{site}] Waitlist open: {class_title} @ {start_time}.',
+            'sms_reminder_body' => '[{site}] Reminder: {class_title} @ {start_time}.',
             'cancellation_window_hours' => 0,
             'reschedule_window_hours' => 0,
             'require_intake' => 0,

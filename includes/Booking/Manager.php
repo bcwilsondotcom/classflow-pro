@@ -30,6 +30,9 @@ class Manager
         if (!$schedule) {
             return new WP_Error('cfp_not_found', __('Schedule not found', 'classflow-pro'), ['status' => 404]);
         }
+        if (!empty($schedule['status']) && $schedule['status'] === 'cancelled') {
+            return new WP_Error('cfp_cancelled', __('This class session has been cancelled', 'classflow-pro'), ['status' => 400]);
+        }
         $capacity = (int)$schedule['capacity'];
         $booked = self::get_booked_count($schedule_id);
         if ($booked >= $capacity) {
@@ -207,6 +210,91 @@ class Manager
         return ['status' => $new_status];
     }
 
+    // Admin-triggered cancellation (e.g., instructor sick). Ignores ownership/window, processes refunds/credits and notifications.
+    public static function admin_cancel_booking(int $booking_id, array $opts = [])
+    {
+        global $wpdb;
+        $bookings = $wpdb->prefix . 'cfp_bookings';
+        $schedules = $wpdb->prefix . 'cfp_schedules';
+        $booking = $wpdb->get_row($wpdb->prepare("SELECT * FROM $bookings WHERE id = %d", $booking_id), ARRAY_A);
+        if (!$booking) return new \WP_Error('cfp_not_found', __('Booking not found', 'classflow-pro'), ['status' => 404]);
+        if (in_array($booking['status'], ['canceled','refunded'], true)) {
+            return ['status' => $booking['status']];
+        }
+        $schedule = $wpdb->get_row($wpdb->prepare("SELECT * FROM $schedules WHERE id = %d", $booking['schedule_id']), ARRAY_A);
+        if (!$schedule) return new \WP_Error('cfp_not_found', __('Schedule not found', 'classflow-pro'), ['status' => 404]);
+
+        $action = isset($opts['action']) ? (string)$opts['action'] : 'auto'; // auto|refund|credit|cancel
+        $new_status = 'canceled';
+        $did_credit = false;
+        $did_refund = false;
+        $can_refund = !empty($booking['payment_intent_id']) && (int)$booking['amount_cents'] > 0;
+        $can_credit = (int)$booking['user_id'] > 0;
+
+        if ($action === 'credit') {
+            if ($can_credit) {
+                \ClassFlowPro\Packages\Manager::grant_package((int)$booking['user_id'], 'Returned Credit', 1, 0, $booking['currency'], null);
+                $did_credit = true;
+                $new_status = 'canceled';
+            }
+        } elseif ($action === 'refund') {
+            if ($can_refund) {
+                $refund = \ClassFlowPro\Payments\StripeGateway::refund_intent($booking['payment_intent_id'], null);
+                if (is_wp_error($refund)) {
+                    return $refund;
+                }
+                $did_refund = true;
+                $new_status = 'refunded';
+                $transactions = $wpdb->prefix . 'cfp_transactions';
+                $wpdb->insert($transactions, [
+                    'user_id' => $booking['user_id'],
+                    'booking_id' => $booking['id'],
+                    'amount_cents' => -1 * (int)$booking['amount_cents'],
+                    'currency' => $booking['currency'],
+                    'type' => 'refund',
+                    'processor' => 'stripe',
+                    'processor_id' => $refund['id'] ?? '',
+                    'status' => 'succeeded',
+                    'tax_amount_cents' => 0,
+                    'fee_amount_cents' => 0,
+                ], ['%d','%d','%d','%s','%s','%s','%s','%d','%d']);
+            }
+        } elseif ($action === 'cancel') {
+            // No financial change, just mark canceled
+            $new_status = 'canceled';
+        } else { // auto
+            if ((int)$booking['credits_used'] > 0 && (int)$booking['user_id'] > 0) {
+                \ClassFlowPro\Packages\Manager::grant_package((int)$booking['user_id'], 'Returned Credit', 1, 0, $booking['currency'], null);
+                $did_credit = true;
+                $new_status = 'canceled';
+            } elseif ($can_refund) {
+                $refund = \ClassFlowPro\Payments\StripeGateway::refund_intent($booking['payment_intent_id'], null);
+                if (is_wp_error($refund)) { return $refund; }
+                $did_refund = true;
+                $new_status = 'refunded';
+                $transactions = $wpdb->prefix . 'cfp_transactions';
+                $wpdb->insert($transactions, [
+                    'user_id' => $booking['user_id'],
+                    'booking_id' => $booking['id'],
+                    'amount_cents' => -1 * (int)$booking['amount_cents'],
+                    'currency' => $booking['currency'],
+                    'type' => 'refund',
+                    'processor' => 'stripe',
+                    'processor_id' => $refund['id'] ?? '',
+                    'status' => 'succeeded',
+                    'tax_amount_cents' => 0,
+                    'fee_amount_cents' => 0,
+                ], ['%d','%d','%d','%s','%s','%s','%s','%d','%d']);
+            }
+        }
+
+        $wpdb->update($bookings, [ 'status' => $new_status ], ['id' => $booking_id], ['%s'], ['%d']);
+        $notify = array_key_exists('notify', $opts) ? (bool)$opts['notify'] : true;
+        $note = isset($opts['note']) ? (string)$opts['note'] : '';
+        if ($notify) { try { \ClassFlowPro\Notifications\Mailer::booking_canceled($booking_id, $new_status, $note); } catch (\Throwable $e) {} }
+        return ['status' => $new_status];
+    }
+
     private static function promote_waitlist(int $schedule_id): void
     {
         global $wpdb;
@@ -221,6 +309,31 @@ class Manager
         $wpdb->delete($wl, ['id' => $row['id']], ['%d']);
     }
 
+    // Admin reschedule of a single booking to another schedule (capacity-checked). Sends rescheduled email if notify.
+    public static function admin_reschedule_booking(int $booking_id, int $target_schedule_id, array $opts = [])
+    {
+        global $wpdb;
+        $bookings = $wpdb->prefix . 'cfp_bookings';
+        $b = $wpdb->get_row($wpdb->prepare("SELECT * FROM $bookings WHERE id = %d", $booking_id), ARRAY_A);
+        if (!$b) return new \WP_Error('cfp_not_found', __('Booking not found', 'classflow-pro'), ['status' => 404]);
+        $old_schedule_id = (int)$b['schedule_id'];
+        if ($old_schedule_id === $target_schedule_id) return ['ok' => true];
+        $target = self::get_schedule($target_schedule_id);
+        if (!$target) return new \WP_Error('cfp_not_found', __('Target schedule not found', 'classflow-pro'), ['status' => 404]);
+        if (!empty($target['status']) && $target['status'] === 'cancelled') return new \WP_Error('cfp_invalid', __('Target schedule has been cancelled', 'classflow-pro'), ['status' => 400]);
+        // Capacity check
+        $booked = self::get_booked_count($target_schedule_id);
+        if ($booked >= (int)$target['capacity']) return new \WP_Error('cfp_full', __('Target class is fully booked', 'classflow-pro'), ['status' => 409]);
+        // Move booking
+        $wpdb->update($bookings, [ 'schedule_id' => $target_schedule_id ], ['id' => $booking_id], ['%d'], ['%d']);
+        // Notify
+        $notify = array_key_exists('notify', $opts) ? (bool)$opts['notify'] : true;
+        if ($notify) {
+            try { \ClassFlowPro\Notifications\Mailer::booking_rescheduled($booking_id, $old_schedule_id); } catch (\Throwable $e) {}
+        }
+        return ['ok' => true];
+    }
+
     public static function reschedule(int $booking_id, int $user_id, int $new_schedule_id)
     {
         global $wpdb;
@@ -232,6 +345,7 @@ class Manager
         $current = $wpdb->get_row($wpdb->prepare("SELECT * FROM $schedules WHERE id = %d", $booking['schedule_id']), ARRAY_A);
         $target = $wpdb->get_row($wpdb->prepare("SELECT * FROM $schedules WHERE id = %d", $new_schedule_id), ARRAY_A);
         if (!$target) return new \WP_Error('cfp_not_found', __('Target schedule not found', 'classflow-pro'), ['status' => 404]);
+        if (!empty($target['status']) && $target['status'] === 'cancelled') return new \WP_Error('cfp_invalid', __('Target schedule has been cancelled', 'classflow-pro'), ['status' => 400]);
         if ($target['start_time'] <= gmdate('Y-m-d H:i:s')) return new \WP_Error('cfp_invalid', __('Target schedule is in the past', 'classflow-pro'), ['status' => 400]);
         if ((int)$target['class_id'] !== (int)$current['class_id']) {
             return new \WP_Error('cfp_invalid', __('Reschedule must be for the same class', 'classflow-pro'), ['status' => 400]);

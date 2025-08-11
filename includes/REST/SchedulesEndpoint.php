@@ -36,6 +36,31 @@ class SchedulesEndpoint
             'callback' => [$this, 'delete_schedule'],
             'permission_callback' => [$this, 'check_permissions'],
         ]);
+        // List attendees for a schedule
+        register_rest_route('classflow-pro/v1', '/schedules/(?P<id>\d+)/attendees', [
+            'methods' => 'GET',
+            'callback' => [$this, 'schedule_attendees'],
+            'permission_callback' => [$this, 'check_permissions'],
+        ]);
+        // Cancel a single schedule instance
+        register_rest_route('classflow-pro/v1', '/schedules/(?P<id>\d+)/cancel', [
+            'methods' => 'POST',
+            'callback' => [$this, 'cancel_schedule'],
+            'permission_callback' => [$this, 'check_permissions'],
+        ]);
+
+        // Move attendees from one schedule to another
+        register_rest_route('classflow-pro/v1', '/schedules/(?P<id>\d+)/reschedule_to', [
+            'methods' => 'POST',
+            'callback' => [$this, 'reschedule_to'],
+            'permission_callback' => [$this, 'check_permissions'],
+        ]);
+        // Preview cancel email content
+        register_rest_route('classflow-pro/v1', '/schedules/(?P<id>\d+)/preview_cancel', [
+            'methods' => 'POST',
+            'callback' => [$this, 'preview_cancel'],
+            'permission_callback' => [$this, 'check_permissions'],
+        ]);
     }
 
     public function check_permissions(): bool
@@ -64,7 +89,7 @@ class SchedulesEndpoint
             LEFT JOIN $instructors_table i ON s.instructor_id = i.id
             LEFT JOIN $locations_table l ON s.location_id = l.id
             LEFT JOIN $resources_table r ON s.resource_id = r.id
-            WHERE s.class_id = %d
+            WHERE s.class_id = %d AND COALESCE(s.status,'active') <> 'cancelled'
             ORDER BY s.start_time DESC
         ", $class_id), ARRAY_A);
 
@@ -190,6 +215,62 @@ class SchedulesEndpoint
         return new \WP_REST_Response(['success' => true], 200);
     }
 
+    public function schedule_attendees($request): \WP_REST_Response
+    {
+        $id = (int)$request->get_param('id');
+        global $wpdb;
+        $b = $wpdb->prefix . 'cfp_bookings';
+        $u = $wpdb->users;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT b.id, b.status, b.user_id, b.customer_email, b.credits_used, b.amount_cents, b.currency, u.display_name, u.user_email
+             FROM $b b LEFT JOIN $u u ON u.ID=b.user_id WHERE b.schedule_id = %d ORDER BY b.status='confirmed' DESC, b.id ASC",
+            $id
+        ), ARRAY_A) ?: [];
+        foreach ($rows as &$r) {
+            $r['id'] = (int)$r['id'];
+            $r['user_id'] = $r['user_id'] ? (int)$r['user_id'] : null;
+            $r['amount_cents'] = (int)$r['amount_cents'];
+            $r['credits_used'] = (int)$r['credits_used'];
+        }
+        return new \WP_REST_Response($rows, 200);
+    }
+
+    public function cancel_schedule($request): \WP_REST_Response
+    {
+        $id = (int)$request->get_param('id');
+        $data = $request->get_json_params();
+        $notify = !empty($data['notify']);
+        $note = isset($data['note']) ? sanitize_textarea_field($data['note']) : '';
+        $action = isset($data['action']) ? sanitize_text_field($data['action']) : 'auto'; // auto|refund|credit|cancel
+        global $wpdb;
+        $b = $wpdb->prefix . 'cfp_bookings';
+        $w = $wpdb->prefix . 'cfp_waitlist';
+        $s = $wpdb->prefix . 'cfp_schedules';
+
+        // Mark schedule as cancelled and store note
+        $wpdb->update($s, [ 'status' => 'cancelled', 'cancel_note' => $note, 'cancelled_at' => gmdate('Y-m-d H:i:s') ], ['id' => $id], ['%s','%s','%s'], ['%d']);
+
+        // Process each active booking: refund/credit/cancel
+        $bookings = $wpdb->get_col($wpdb->prepare("SELECT id FROM $b WHERE schedule_id = %d AND status IN ('pending','confirmed')", $id));
+        $processed = ['refunded' => 0, 'credited' => 0, 'canceled' => 0, 'errors' => 0];
+        if ($bookings) {
+            foreach ($bookings as $bid) {
+                $opts = ['notify' => $notify, 'action' => $action, 'note' => $note];
+                $res = \ClassFlowPro\Booking\Manager::admin_cancel_booking((int)$bid, $opts);
+                if (is_wp_error($res)) { $processed['errors']++; continue; }
+                $st = $res['status'] ?? 'canceled';
+                if ($st === 'refunded') $processed['refunded']++;
+                elseif ($st === 'canceled') $processed['canceled']++;
+                else $processed['canceled']++;
+            }
+        }
+
+        // Clear waitlist entries
+        $wpdb->delete($w, ['schedule_id' => $id], ['%d']);
+
+        return new \WP_REST_Response(['success' => true, 'processed' => $processed], 200);
+    }
+
     private function check_instructor_conflict($instructor_id, $start_time, $end_time, $exclude_id = null): bool
     {
         global $wpdb;
@@ -229,4 +310,39 @@ class SchedulesEndpoint
         
         return (bool) $wpdb->get_var($wpdb->prepare($query, ...$params));
     }
+
+    public function reschedule_to($request): \WP_REST_Response
+    {
+        $id = (int)$request->get_param('id');
+        $data = $request->get_json_params();
+        $target = isset($data['target_schedule_id']) ? (int)$data['target_schedule_id'] : 0;
+        $notify = !empty($data['notify']);
+        if ($target <= 0) return new \WP_REST_Response(['error' => 'Missing target_schedule_id'], 400);
+        global $wpdb; $b=$wpdb->prefix.'cfp_bookings';
+        $bookings = $wpdb->get_col($wpdb->prepare("SELECT id FROM $b WHERE schedule_id = %d AND status IN ('pending','confirmed')", $id));
+        $moved=0; $errors=0;
+        if ($bookings) {
+            foreach ($bookings as $bid) {
+                $res = \ClassFlowPro\Booking\Manager::admin_reschedule_booking((int)$bid, $target, ['notify' => $notify]);
+                if (is_wp_error($res)) $errors++; else $moved++;
+            }
+        }
+        return new \WP_REST_Response(['success'=>true,'moved'=>$moved,'errors'=>$errors], 200);
+    }
+
+    public function preview_cancel($request): \WP_REST_Response
+    {
+        $id = (int)$request->get_param('id');
+        $data = $request->get_json_params();
+        $note = isset($data['note']) ? sanitize_textarea_field($data['note']) : '';
+        global $wpdb; $s=$wpdb->prefix.'cfp_schedules';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $s WHERE id = %d", $id), ARRAY_A);
+        if (!$row) return new \WP_REST_Response(['error'=>'not_found'],404);
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+        $tz = \ClassFlowPro\Utils\Timezone::for_location(!empty($row['location_id']) ? (int)$row['location_id'] : null);
+        $start = \ClassFlowPro\Utils\Timezone::format_local($row['start_time'], $tz);
+        [$subject,$body] = \ClassFlowPro\Notifications\Mailer::build_canceled_email($title, $start, 'canceled', $note);
+        return new \WP_REST_Response(['subject'=>$subject,'body'=>$body],200);
+    }
+
 }

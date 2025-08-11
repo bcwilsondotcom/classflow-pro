@@ -10,6 +10,7 @@ class Shortcodes
         add_shortcode('cfp_intake_form', [self::class, 'intake_form']);
         add_shortcode('cfp_booking_funnel', [self::class, 'booking_funnel']);
         add_shortcode('cfp_user_portal', [self::class, 'user_portal']);
+        add_shortcode('cfp_checkout_success', [self::class, 'checkout_success']);
     }
 
     public static function calendar_booking($atts): string
@@ -42,7 +43,7 @@ class Shortcodes
         echo '<div class="cfp-step-booking" data-nonce="' . esc_attr($nonce) . '">';
         echo '<div class="cfp-step cfp-step-1"><h4>Step 1 — Choose</h4><label>Location <select class="cfp-loc"><option value="">All</option></select></label> <label>Class <select class="cfp-class"><option value="">All</option></select></label> <label>Date <input type="date" class="cfp-date"></label> <button class="button cfp-next-1">Next</button></div>';
         echo '<div class="cfp-step cfp-step-2" style="display:none"><h4>Step 2 — Select Time</h4><div class="cfp-times"></div><button class="button cfp-prev-2">Back</button> <button class="button cfp-next-2">Next</button></div>';
-        echo '<div class="cfp-step cfp-step-3" style="display:none"><h4>Step 3 — Your Details</h4><label>Name <input type="text" class="cfp-name"></label> <label>Email <input type="email" class="cfp-email"></label> <label>Coupon <input type="text" class="cfp-coupon"></label> <label><input type="checkbox" class="cfp-use-credits"> Use credits</label> <button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button></div>';
+        echo '<div class="cfp-step cfp-step-3" style="display:none"><h4>Step 3 — Your Details</h4><label>Name <input type="text" class="cfp-name"></label> <label>Email <input type="email" class="cfp-email" autocomplete="email"></label> <label>Phone <input type="tel" class="cfp-phone" autocomplete="tel"></label> <div class="cfp-account-fields" style="display:block;margin:8px 0;"><label>Create password <input type="password" class="cfp-password" autocomplete="new-password"></label> <small style="display:block;color:#64748b;">If you don\'t have an account, we\'ll create one using this password.</small> <label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> Send me text messages about my bookings (optional)</label></div> <label>Coupon <input type="text" class="cfp-coupon"></label> <label><input type="checkbox" class="cfp-use-credits"> Use credits</label> <button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button></div>';
         echo '<div class="cfp-step cfp-step-4" style="display:none"><h4>Step 4 — Payment</h4><div class="cfp-review"></div><div class="cfp-payment" style="display:none"><div class="cfp-card-element"></div></div><button class="button cfp-prev-4">Back</button> <button class="button button-primary cfp-pay">Pay</button><div class="cfp-msg" aria-live="polite"></div></div>';
         echo '</div>';
         return ob_get_clean();
@@ -128,6 +129,16 @@ class Shortcodes
         echo '<div class="cfp-portal-credits"><h3>Credits</h3><div class="cfp-credits">Loading…</div></div>';
         echo '<div class="cfp-portal-notes"><h3>' . esc_html__('Notes', 'classflow-pro') . '</h3><div class="cfp-notes-list">Loading…</div></div>';
         echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function checkout_success($atts = []): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('cfp-checkout-success', CFP_PLUGIN_URL . 'assets/js/checkout-success.js', ['jquery'], '1.0.0', true);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-checkout-success" data-nonce="' . esc_attr($nonce) . '"><div class="cfp-msg" aria-live="polite">Processing your checkout result…</div></div>';
         return ob_get_clean();
     }
 }

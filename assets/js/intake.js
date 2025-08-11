@@ -15,6 +15,9 @@
     $root.find('.cfp-med').val(f.medical || '');
     $root.find('.cfp-inj').val(f.injuries || '');
     $root.find('.cfp-preg').prop('checked', !!f.pregnant);
+    if (f.prompts && typeof f.prompts === 'object') {
+      $root.find('.cfp-prompt').each(function(){ const k=$(this).data('key'); if (f.prompts[k]) $(this).val(f.prompts[k]); });
+    }
   }
 
   async function submit($root) {
@@ -28,13 +31,21 @@
       pregnant: $root.find('.cfp-preg').is(':checked'),
       signature: ($root.find('.cfp-sign').val() || '').toString(),
       consent: $root.find('.cfp-consent').is(':checked'),
+      prompts: {}
     };
+    $root.find('.cfp-prompt').each(function(){ const k=$(this).data('key'); body.prompts[k]=($(this).val()||'').toString(); });
     const $msg = $root.find('.cfp-msg').empty();
     if (!body.signature || !body.consent) { $msg.text('Signature and consent required.'); return; }
     const res = await fetch(CFP_DATA.restUrl + 'me/intake', { method: 'POST', headers: headers($root), body: JSON.stringify(body) });
     const d = await res.json();
     if (!res.ok) { $msg.text(d.message || 'Submission failed.'); return; }
     $msg.text('Intake submitted. Thank you!');
+    // Optional redirect back to source page
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const ret = params.get('return');
+      if (ret) { setTimeout(function(){ window.location.href = ret; }, 1000); }
+    } catch(e) {}
   }
 
   $(function(){
@@ -42,4 +53,3 @@
   });
   $(document).on('click', '.cfp-intake-submit', function(e){ e.preventDefault(); submit($(this).closest('.cfp-intake')); });
 })(jQuery);
-

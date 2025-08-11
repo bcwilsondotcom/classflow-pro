@@ -115,16 +115,23 @@
     const name = $root.find('.cfp-name').val();
     const email = $root.find('.cfp-email').val();
     const couponCode = ($root.find('.cfp-coupon').val() || '').toString();
+    const phone = ($root.find('.cfp-phone').val() || '').toString();
+    const password = ($root.find('.cfp-password').val() || '').toString();
+    const sms_opt_in = $root.find('.cfp-sms-optin').is(':checked');
     const useCredits = $root.find('.cfp-use-credits').is(':checked');
     const $msg = $root.find('.cfp-msg').empty();
     if (!scheduleId) { $msg.text('Please select a schedule.'); return; }
     const res = await fetch(CFP_DATA.restUrl + 'book', {
       method: 'POST',
       headers: createHeaders(),
-      body: JSON.stringify({ schedule_id: scheduleId, name, email, use_credits: useCredits, coupon_code: couponCode })
+      body: JSON.stringify({ schedule_id: scheduleId, name, email, phone, password, sms_opt_in, use_credits: useCredits, coupon_code: couponCode })
     });
     const data = await res.json();
     if (!res.ok) {
+      if (data.code === 'cfp_intake_required') {
+        $msg.html('An intake form is required before booking. Please complete your profile/intake, then try again.');
+        return;
+      }
       if (data.code === 'cfp_full') {
         $msg.html('Class is full. <button class="button cfp-join-waitlist">Join Waitlist</button>');
         $root.find('.cfp-join-waitlist').off('click').on('click', async function(){
@@ -148,10 +155,16 @@
       $root.find('.cfp-payment').show();
       $root.data('pi', pi);
       $root.data('stripeCtx', ctx);
+      $root.data('intakeRequired', !!data.intake_required);
       $msg.text('Please enter payment details to complete booking.');
       await mountPaymentRequest($root, ctx, data.amount_cents, data.currency, pi.payment_intent_client_secret);
     } else {
       $msg.text('Booked using credits. You are confirmed!');
+      if (data.intake_required) {
+        const url = CFP_DATA.intakePageUrl || '#';
+        const ret = encodeURIComponent(window.location.href);
+        $msg.append(' Please complete your intake before your first visit. ' + (url && url !== '#' ? '<a class="button" href="'+url+(url.indexOf('?')>=0?'&':'?')+'return='+ret+'">Complete Intake now</a>' : ''));
+      }
     }
   });
 
@@ -168,6 +181,12 @@
       return;
     }
     $msg.text('Payment succeeded! Your booking is confirmed.');
+    const intakeRequired = !!($root.data('intakeRequired'));
+    if (intakeRequired) {
+      const url = CFP_DATA.intakePageUrl || '#';
+      const ret = encodeURIComponent(window.location.href);
+      $msg.append(' Please complete your intake before your first visit. ' + (url && url !== '#' ? '<a class="button" href="'+url+(url.indexOf('?')>=0?'&':'?')+'return='+ret+'">Complete Intake now</a>' : ''));
+    }
   });
 
   // Package purchase

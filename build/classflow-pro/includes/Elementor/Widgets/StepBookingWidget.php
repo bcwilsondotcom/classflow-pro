@@ -31,7 +31,13 @@ class StepBookingWidget extends Widget_Base
         echo '<div class="cfp-step cfp-step-3" style="display:none">';
         echo '<h4>Step 3 — Your Details</h4>';
         echo '<label>Name <input type="text" class="cfp-name"></label> ';
-        echo '<label>Email <input type="email" class="cfp-email"></label> ';
+        echo '<label>Email <input type="email" class="cfp-email" autocomplete="email"></label> ';
+        echo '<label>Phone <input type="tel" class="cfp-phone" autocomplete="tel"></label> ';
+        echo '<div class="cfp-account-fields" style="display:block;margin:8px 0;">';
+        echo '<label>Create password <input type="password" class="cfp-password" autocomplete="new-password"></label> ';
+        echo '<small style="display:block;color:#64748b;">If you don\'t have an account, we\'ll create one using this password.</small>';
+        echo '<label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> Send me text messages about my bookings (optional)</label>';
+        echo '</div>';
         echo '<label>Coupon <input type="text" class="cfp-coupon"></label> ';
         echo '<label><input type="checkbox" class="cfp-use-credits"> Use credits</label> ';
         echo '<button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button>';

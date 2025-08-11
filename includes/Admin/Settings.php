@@ -33,6 +33,7 @@ class Settings
         add_submenu_page('classflow-pro', __('Reports', 'classflow-pro'), __('Reports', 'classflow-pro'), 'manage_options', 'classflow-pro-reports', ['ClassFlowPro\\Admin\\Reports', 'render']);
         add_submenu_page('classflow-pro', __('Payouts', 'classflow-pro'), __('Payouts', 'classflow-pro'), 'manage_options', 'classflow-pro-payouts', ['ClassFlowPro\\Admin\\Payouts', 'render']);
         add_submenu_page('classflow-pro', __('Customer Notes', 'classflow-pro'), __('Customer Notes', 'classflow-pro'), 'manage_options', 'classflow-pro-notes', ['ClassFlowPro\\Admin\\CustomerNotes', 'render']);
+        add_submenu_page('classflow-pro', __('Intake Forms', 'classflow-pro'), __('Intake Forms', 'classflow-pro'), 'manage_options', 'classflow-pro-intake', ['ClassFlowPro\\Admin\\IntakeForms', 'render']);
     }
 
     public static function register_settings(): void
@@ -53,9 +54,23 @@ class Settings
         add_settings_field('cancellation_window_hours', __('Cancellation Window (hours)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'cancellation_window_hours', 'step' => '1']);
         add_settings_field('reschedule_window_hours', __('Reschedule Window (hours)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'reschedule_window_hours', 'step' => '1']);
         add_settings_field('notify_customer', __('Email Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_customer']);
+        add_settings_field('require_login_to_book', __('Require Login To Book', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_login_to_book']);
+        add_settings_field('auto_create_user_on_booking', __('Auto-create User On Booking', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'auto_create_user_on_booking']);
         add_settings_field('notify_admin', __('Email Admin', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_admin']);
-        add_settings_field('require_intake', __('Require Intake Before Booking', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_intake']);
+        add_settings_field('require_intake', __('Require Intake Before First Visit', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_intake']);
+        add_settings_field('intake_page_url', __('Intake Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'intake_page_url']);
         add_settings_field('delete_on_uninstall', __('Delete Data on Uninstall', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'delete_on_uninstall']);
+
+        // Notifications (Email/SMS)
+        add_settings_section('cfp_notifications', __('Notifications', 'classflow-pro'), function () {
+            echo '<p>' . esc_html__('Configure email and SMS notifications.', 'classflow-pro') . '</p>';
+        }, 'classflow-pro');
+        add_settings_field('notify_sms_customer', __('SMS Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_customer']);
+        add_settings_field('notify_sms_instructor', __('SMS Instructors', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_instructor']);
+        add_settings_field('twilio_account_sid', __('Twilio Account SID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_account_sid']);
+        add_settings_field('twilio_auth_token', __('Twilio Auth Token', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_auth_token']);
+        add_settings_field('twilio_from_number', __('Twilio From Number (E.164)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_from_number']);
+        add_settings_field('reminder_hours_before', __('Reminder Hours Before (comma-separated)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'reminder_hours_before']);
 
         add_settings_section('cfp_stripe', __('Stripe', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Configure Stripe for payments and taxes. Set your webhook endpoint to /wp-json/classflow/v1/stripe/webhook', 'classflow-pro') . '</p>';
@@ -158,6 +173,8 @@ class Settings
         $output['reschedule_window_hours'] = isset($output['reschedule_window_hours']) ? max(0, intval($output['reschedule_window_hours'])) : 0;
         $output['notify_customer'] = isset($output['notify_customer']) ? 1 : 0;
         $output['notify_admin'] = isset($output['notify_admin']) ? 1 : 0;
+        $output['require_login_to_book'] = isset($output['require_login_to_book']) ? 1 : 0;
+        $output['auto_create_user_on_booking'] = isset($output['auto_create_user_on_booking']) ? 1 : 0;
         $output['notify_instructor'] = isset($output['notify_instructor']) ? 1 : 0;
         $bc = strtoupper(sanitize_text_field($output['business_country'] ?? ''));
         $output['business_country'] = preg_match('/^[A-Z]{2}$/', $bc) ? $bc : 'US';

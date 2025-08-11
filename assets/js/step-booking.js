@@ -25,13 +25,17 @@
     const scheduleId = $root.data('schedule_id');
     const name = ($root.find('.cfp-name').val()||'').toString();
     const email = ($root.find('.cfp-email').val()||'').toString();
+    const phone = ($root.find('.cfp-phone').val()||'').toString();
+    const password = ($root.find('.cfp-password').val()||'').toString();
+    const sms_opt_in = $root.find('.cfp-sms-optin').is(':checked');
     const coupon = ($root.find('.cfp-coupon').val()||'').toString();
     const useCredits = $root.find('.cfp-use-credits').is(':checked');
     const $msg = $root.find('.cfp-msg').empty();
     if (!scheduleId) { $msg.text('Please choose a time.'); return null; }
-    const res = await fetch(CFP_DATA.restUrl + 'book', { method:'POST', headers: headers($root), body: JSON.stringify({ schedule_id: scheduleId, name, email, use_credits: useCredits, coupon_code: coupon })});
+    const res = await fetch(CFP_DATA.restUrl + 'book', { method:'POST', headers: headers($root), body: JSON.stringify({ schedule_id: scheduleId, name, email, phone, password, sms_opt_in, use_credits: useCredits, coupon_code: coupon })});
     const data = await res.json();
     if (!res.ok) { $msg.text(data.message || 'Booking failed'); return null; }
+    $root.data('intakeRequired', !!data.intake_required);
     return data;
   }
   async function setupPayment($root, data) {
@@ -54,13 +58,18 @@
     const res = await stripe.confirmPayment({ clientSecret: pi.payment_intent_client_secret, elements });
     if (res.error) { $msg.text(res.error.message || 'Payment failed'); return; }
     $msg.text('Payment succeeded! Your booking is confirmed.');
+    if ($root.data('intakeRequired')) {
+      const url = (CFP_DATA.intakePageUrl || '#');
+      const ret = encodeURIComponent(window.location.href);
+      $msg.append(' Please complete your intake before your first visit. ' + (url && url !== '#' ? '<a class="button" href="'+url+(url.indexOf('?')>=0?'&':'?')+'return='+ret+'">Complete Intake now</a>' : ''));
+    }
   }
 
   $(document).on('click', '.cfp-next-1', function(){ const $r=$(this).closest('.cfp-step-booking'); loadTimes($r); $r.find('.cfp-step').hide(); $r.find('.cfp-step-2').show(); });
   $(document).on('click', '.cfp-prev-2', function(){ const $r=$(this).closest('.cfp-step-booking'); $r.find('.cfp-step').hide(); $r.find('.cfp-step-1').show(); });
   $(document).on('click', '.cfp-next-2', function(){ const $r=$(this).closest('.cfp-step-booking'); if (!$r.data('schedule_id')) { alert('Pick a time'); return; } $r.find('.cfp-step').hide(); $r.find('.cfp-step-3').show(); });
   $(document).on('click', '.cfp-prev-3', function(){ const $r=$(this).closest('.cfp-step-booking'); $r.find('.cfp-step').hide(); $r.find('.cfp-step-2').show(); });
-  $(document).on('click', '.cfp-next-3', async function(){ const $r=$(this).closest('.cfp-step-booking'); const data=await createBooking($r); if(!data)return; $r.find('.cfp-review').text('Total: ' + (data.amount_cents/100).toFixed(2) + ' ' + (data.currency||'USD').toUpperCase()); if (data.amount_cents>0) { await setupPayment($r, data); } $r.find('.cfp-step').hide(); $r.find('.cfp-step-4').show(); });
+  $(document).on('click', '.cfp-next-3', async function(){ const $r=$(this).closest('.cfp-step-booking'); const data=await createBooking($r); if(!data)return; $r.find('.cfp-review').text('Total: ' + (data.amount_cents/100).toFixed(2) + ' ' + (data.currency||'USD').toUpperCase()); if (data.amount_cents>0) { await setupPayment($r, data); } $r.find('.cfp-step').hide(); $r.find('.cfp-step-4').show(); if (data.amount_cents<=0 && data.intake_required) { const url=(CFP_DATA.intakePageUrl||'#'); const ret=encodeURIComponent(window.location.href); $r.find('.cfp-msg').html('Booked with credits. Please complete your intake before your first visit. ' + (url && url !== '#' ? '<a class="button" href="'+url+(url.indexOf('?')>=0?'&':'?')+'return='+ret+'">Complete Intake now</a>' : '')); } });
   $(document).on('click', '.cfp-next-3', async function(){
     const $r=$(this).closest('.cfp-step-booking');
     const data=await createBooking($r); if(!data)return;

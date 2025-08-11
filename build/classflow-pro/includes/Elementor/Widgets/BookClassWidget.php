@@ -50,7 +50,13 @@ class BookClassWidget extends Widget_Base
         echo '<div class="cfp-booking-form" style="display:none">';
         echo '<h4>' . esc_html__('Book Selected Class', 'classflow-pro') . '</h4>';
         echo '<label>' . esc_html__('Your name', 'classflow-pro') . ' <input type="text" class="cfp-name"></label>';
-        echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email"></label>';
+        echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email" autocomplete="email"></label>';
+        echo '<label>' . esc_html__('Phone', 'classflow-pro') . ' <input type="tel" class="cfp-phone" autocomplete="tel"></label>';
+        echo '<div class="cfp-account-fields" style="display:block;margin:8px 0;">';
+        echo '<label>' . esc_html__('Create password', 'classflow-pro') . ' <input type="password" class="cfp-password" autocomplete="new-password"></label> ';
+        echo '<small style="display:block;color:#64748b;">' . esc_html__('If you don\'t have an account, we\'ll create one using this password.', 'classflow-pro') . '</small>';
+        echo '<label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> ' . esc_html__('Send me text messages about my bookings (optional)', 'classflow-pro') . '</label>';
+        echo '</div>';
         echo '<label>' . esc_html__('Coupon code', 'classflow-pro') . ' <input type="text" class="cfp-coupon" placeholder="WELCOME10"></label>';
         echo '<label><input type="checkbox" class="cfp-use-credits"> ' . esc_html__('Use available credits', 'classflow-pro') . '</label>';
         echo '<button class="button button-primary cfp-book">' . esc_html__('Book Now', 'classflow-pro') . '</button>';
