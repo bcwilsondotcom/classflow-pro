@@ -6,11 +6,91 @@ class Shortcodes
     public static function register(): void
     {
         add_shortcode('cfp_calendar_booking', [self::class, 'calendar_booking']);
+        add_shortcode('cfp_small_calendar_booking', [self::class, 'small_calendar_booking']);
         add_shortcode('cfp_step_booking', [self::class, 'step_booking']);
         add_shortcode('cfp_intake_form', [self::class, 'intake_form']);
         add_shortcode('cfp_booking_funnel', [self::class, 'booking_funnel']);
         add_shortcode('cfp_user_portal', [self::class, 'user_portal']);
         add_shortcode('cfp_checkout_success', [self::class, 'checkout_success']);
+        add_shortcode('cfp_waitlist_response', [self::class, 'waitlist_response']);
+    }
+
+    public static function small_calendar_booking($atts): string
+    {
+        $atts = shortcode_atts(['class_id' => 0, 'location_id' => 0], $atts, 'cfp_small_calendar_booking');
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-calendar', CFP_PLUGIN_URL . 'assets/js/calendar.js', ['jquery'], '1.0.0', true);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        ?>
+        <div class="cfp-calendar-booking cfp-small-calendar" data-class-id="<?php echo esc_attr((int)$atts['class_id']); ?>" data-location-id="<?php echo esc_attr((int)$atts['location_id']); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+            <div class="cfp-cal-container">
+                <div class="cfp-cal-main">
+                    <div class="cfp-cal-toolbar">
+                        <div class="cfp-cal-head">
+                            <button class="cfp-cal-prev" aria-label="Previous">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                                </svg>
+                            </button>
+                            <span class="cfp-cal-title">Loading...</span>
+                            <button class="cfp-cal-next" aria-label="Next">
+                                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="cfp-cal-views">
+                            <button class="cfp-view active" data-view="month">Month</button>
+                            <button class="cfp-view" data-view="week">Week</button>
+                            <button class="cfp-view" data-view="agenda">List</button>
+                        </div>
+                        <div class="cfp-cal-filters">
+                            <select class="cfp-filter-class">
+                                <option value="">All Classes</option>
+                            </select>
+                            <select class="cfp-filter-location">
+                                <option value="">All Locations</option>
+                            </select>
+                            <select class="cfp-filter-instructor">
+                                <option value="">All Instructors</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cfp-cal-grid cfp-loading"></div>
+                    <div class="cfp-agenda" style="display:none"></div>
+                </div>
+                <div class="cfp-cal-sidebar">
+                    <h4>Book Your Class</h4>
+                    <div class="cfp-cal-selected"></div>
+                    <label>
+                        Your Name
+                        <input type="text" class="cfp-name" placeholder="Enter your name" required>
+                    </label>
+                    <label>
+                        Email Address
+                        <input type="email" class="cfp-email" placeholder="your@email.com" required>
+                    </label>
+                    <label>
+                        Promo Code
+                        <input type="text" class="cfp-coupon" placeholder="Optional">
+                    </label>
+                    <label style="display: flex; align-items: center; font-weight: normal;">
+                        <input type="checkbox" class="cfp-use-credits">
+                        <span>Use available credits</span>
+                    </label>
+                    <button class="cfp-book">Book Class</button>
+                    <div class="cfp-payment" style="display:none">
+                        <div class="cfp-card-element"></div>
+                        <button class="cfp-pay">Complete Payment</button>
+                    </div>
+                    <div class="cfp-msg" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+        <?php
+        return ob_get_clean();
     }
 
     public static function calendar_booking($atts): string
@@ -21,15 +101,97 @@ class Shortcodes
         wp_enqueue_script('cfp-calendar', CFP_PLUGIN_URL . 'assets/js/calendar.js', ['jquery'], '1.0.0', true);
         $nonce = wp_create_nonce('wp_rest');
         ob_start();
-        echo '<div class="cfp-calendar-booking" data-class-id="' . esc_attr((int)$atts['class_id']) . '" data-location-id="' . esc_attr((int)$atts['location_id']) . '" data-nonce="' . esc_attr($nonce) . '">';
-        echo '<div class="cfp-cal-toolbar">';
-        echo '<div class="cfp-cal-head"><button class="button cfp-cal-prev">◀</button> <span class="cfp-cal-title"></span> <button class="button cfp-cal-next">▶</button></div>';
-        echo '<div class="cfp-cal-views"><button class="button cfp-view" data-view="month">Month</button> <button class="button cfp-view" data-view="week">Week</button> <button class="button cfp-view" data-view="agenda">Agenda</button></div>';
-        echo '<div class="cfp-cal-filters"><select class="cfp-filter-class"><option value="">All Classes</option></select> <select class="cfp-filter-location"><option value="">All Locations</option></select> <select class="cfp-filter-instructor"><option value="">All Instructors</option></select></div>';
-        echo '</div>';
-        echo '<div class="cfp-cal-grid"></div><div class="cfp-agenda" style="display:none"></div>';
-        echo '<div class="cfp-cal-sidebar"><h4>Book Session</h4><div class="cfp-cal-selected"></div><label>Your name <input type="text" class="cfp-name"></label><label>Email <input type="email" class="cfp-email"></label><label>Coupon code <input type="text" class="cfp-coupon" placeholder="WELCOME10"></label><label><input type="checkbox" class="cfp-use-credits"> Use available credits</label><button class="button button-primary cfp-book">Book</button><div class="cfp-payment" style="display:none"><div class="cfp-card-element"></div><button class="button button-primary cfp-pay">Pay</button></div><div class="cfp-msg" aria-live="polite"></div></div>';
-        echo '</div>';
+        ?>
+        <div class="cfp-calendar-booking cfp-full-calendar" data-class-id="<?php echo esc_attr((int)$atts['class_id']); ?>" data-location-id="<?php echo esc_attr((int)$atts['location_id']); ?>" data-nonce="<?php echo esc_attr($nonce); ?>">
+            <div class="cfp-full-cal-wrapper">
+                <div class="cfp-full-cal-header">
+                    <div class="cfp-full-cal-nav">
+                        <button class="cfp-cal-prev" aria-label="Previous month">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                            </svg>
+                        </button>
+                        <h2 class="cfp-cal-title">Loading...</h2>
+                        <button class="cfp-cal-next" aria-label="Next month">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="cfp-full-cal-controls">
+                        <div class="cfp-cal-views">
+                            <button class="cfp-view active" data-view="month">Month</button>
+                            <button class="cfp-view" data-view="week">Week</button>
+                            <button class="cfp-view" data-view="agenda">List</button>
+                        </div>
+                        <div class="cfp-cal-filters">
+                            <select class="cfp-filter-class">
+                                <option value="">All Classes</option>
+                            </select>
+                            <select class="cfp-filter-location">
+                                <option value="">All Locations</option>
+                            </select>
+                            <select class="cfp-filter-instructor">
+                                <option value="">All Instructors</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="cfp-full-cal-body">
+                    <div class="cfp-full-cal-main">
+                        <div class="cfp-cal-grid cfp-loading"></div>
+                        <div class="cfp-agenda" style="display:none"></div>
+                    </div>
+                    <div class="cfp-full-cal-sidebar">
+                        <div class="cfp-sidebar-card">
+                            <h3>Selected Class</h3>
+                            <div class="cfp-cal-selected"></div>
+                        </div>
+                        <div class="cfp-sidebar-card">
+                            <h3>Quick Booking</h3>
+                            <form class="cfp-booking-form">
+                                <label>
+                                    Name
+                                    <input type="text" class="cfp-name" placeholder="Your full name" required>
+                                </label>
+                                <label>
+                                    Email
+                                    <input type="email" class="cfp-email" placeholder="your@email.com" required>
+                                </label>
+                                <label>
+                                    Phone
+                                    <input type="tel" class="cfp-phone" placeholder="(555) 123-4567">
+                                </label>
+                                <label>
+                                    Create password
+                                    <input type="password" class="cfp-password" autocomplete="new-password" placeholder="Set a password (optional)">
+                                </label>
+                                <label class="cfp-checkbox-label">
+                                    <input type="checkbox" class="cfp-sms-optin">
+                                    <span>Send me text messages about my bookings (optional)</span>
+                                </label>
+                                <label>
+                                    Promo Code
+                                    <input type="text" class="cfp-coupon" placeholder="Enter code">
+                                </label>
+                                <label class="cfp-checkbox-label">
+                                    <input type="checkbox" class="cfp-use-credits">
+                                    <span>Use available credits</span>
+                                </label>
+                                <button type="button" class="cfp-book">Book This Class</button>
+                            </form>
+                            <div class="cfp-payment" style="display:none">
+                                <h4>Payment Details</h4>
+                                <div class="cfp-card-element"></div>
+                                <button class="cfp-pay">Complete Payment</button>
+                            </div>
+                            <div class="cfp-msg" aria-live="polite"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
         return ob_get_clean();
     }
 
@@ -139,6 +301,16 @@ class Shortcodes
         $nonce = wp_create_nonce('wp_rest');
         ob_start();
         echo '<div class="cfp-checkout-success" data-nonce="' . esc_attr($nonce) . '"><div class="cfp-msg" aria-live="polite">Processing your checkout result…</div></div>';
+        return ob_get_clean();
+    }
+
+    public static function waitlist_response($atts = []): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('cfp-waitlist-response', CFP_PLUGIN_URL . 'assets/js/waitlist-response.js', ['jquery'], '1.0.0', true);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-waitlist-response" data-nonce="' . esc_attr($nonce) . '"><div class="cfp-msg" aria-live="polite">Processing your response…</div></div>';
         return ob_get_clean();
     }
 }

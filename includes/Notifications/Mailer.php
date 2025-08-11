@@ -180,7 +180,6 @@ class Mailer
 
     public static function waitlist_open(int $schedule_id, string $email): void
     {
-        $s = get_post((int)$schedule_id);
         global $wpdb;
         $stable = $wpdb->prefix . 'cfp_schedules';
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $schedule_id), ARRAY_A);
@@ -194,6 +193,37 @@ class Mailer
         ]);
         self::send($email, $subject, '<p>' . esc_html__('A spot just opened in your waitlisted class. Please book now to secure it:', 'classflow-pro') . '</p>' . $body);
         // If we know the user_id from waitlist entry, an SMS may be sent by higher-level caller
+    }
+
+    public static function waitlist_joined(int $schedule_id, string $email): void
+    {
+        global $wpdb; $stable=$wpdb->prefix.'cfp_schedules';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $schedule_id), ARRAY_A);
+        if (!$row) return;
+        $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+        $start = gmdate('Y-m-d H:i', strtotime($row['start_time'])) . ' UTC';
+        $subject = '[' . wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) . '] Waitlist Joined: ' . $class_title;
+        $body = '<p>' . esc_html__('You have been added to the waitlist. We will notify you if a spot opens.', 'classflow-pro') . '</p>';
+        $body .= '<p><strong>' . esc_html($class_title) . '</strong><br>' . esc_html($start) . '</p>';
+        self::send($email, $subject, $body);
+    }
+
+    public static function waitlist_offer(int $schedule_id, string $email, string $token): void
+    {
+        global $wpdb; $stable=$wpdb->prefix.'cfp_schedules';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $schedule_id), ARRAY_A);
+        if (!$row) return;
+        $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+        $start = gmdate('Y-m-d H:i', strtotime($row['start_time'])) . ' UTC';
+        $resp = \ClassFlowPro\Admin\Settings::get('waitlist_response_page_url', '');
+        $accept = $resp ? add_query_arg([ 'action' => 'accept', 'token' => $token ], $resp) : '#';
+        $deny = $resp ? add_query_arg([ 'action' => 'deny', 'token' => $token ], $resp) : '#';
+        $subject = '[' . wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) . '] Spot Available: ' . $class_title;
+        $body = '<p>' . esc_html__('A spot just opened in your waitlisted class. Would you like to accept it?', 'classflow-pro') . '</p>';
+        $body .= '<p><strong>' . esc_html($class_title) . '</strong><br>' . esc_html($start) . '</p>';
+        $body .= '<p><a href="' . esc_url($accept) . '" class="button">' . esc_html__('Accept Spot', 'classflow-pro') . '</a> ';
+        $body .= '<a href="' . esc_url($deny) . '" class="button">' . esc_html__('Decline', 'classflow-pro') . '</a></p>';
+        self::send($email, $subject, $body);
     }
 
     public static function booking_reminder(int $booking_id): void

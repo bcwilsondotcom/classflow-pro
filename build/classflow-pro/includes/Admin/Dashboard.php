@@ -76,7 +76,7 @@ class Dashboard
         echo '</div>';
     }
 
-    private static function format_money(int $amount_cents, string $currency = null): string
+    private static function format_money(int $amount_cents, ?string $currency = null): string
     {
         $currency = $currency ?: Settings::get('currency', 'usd');
         $amount = $amount_cents / 100;

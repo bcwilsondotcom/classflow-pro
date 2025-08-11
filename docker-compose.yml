@@ -37,6 +37,8 @@ services:
       - ./:/var/www/html/wp-content/plugins/classflow-pro:rw
       # Auto-route WordPress mail through MailHog for local testing
       - ./docker/mu-plugins:/var/www/html/wp-content/mu-plugins:rw
+      # Mount our custom wp-config.php
+      - ./docker/wp-config.php:/var/www/html/wp-config.php:ro
 
   phpmyadmin:
     image: phpmyadmin:latest

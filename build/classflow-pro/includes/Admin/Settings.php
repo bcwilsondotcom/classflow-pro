@@ -38,10 +38,12 @@ class Settings
 
     public static function register_settings(): void
     {
+        // Important: do not set a dynamic default to the current option value; it causes
+        // unchecked checkboxes to be backfilled before sanitize runs, making them impossible to disable.
         register_setting('cfp_settings_group', 'cfp_settings', [
             'type' => 'array',
             'sanitize_callback' => [self::class, 'sanitize_settings'],
-            'default' => get_option('cfp_settings', []),
+            'default' => [],
         ]);
 
         add_settings_section('cfp_general', __('General', 'classflow-pro'), function () {
@@ -59,6 +61,8 @@ class Settings
         add_settings_field('notify_admin', __('Email Admin', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_admin']);
         add_settings_field('require_intake', __('Require Intake Before First Visit', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_intake']);
         add_settings_field('intake_page_url', __('Intake Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'intake_page_url']);
+        add_settings_field('waitlist_response_page_url', __('Waitlist Response Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'waitlist_response_page_url']);
+        add_settings_field('waitlist_hold_minutes', __('Waitlist Hold Window (minutes)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'waitlist_hold_minutes', 'step' => '5']);
         add_settings_field('delete_on_uninstall', __('Delete Data on Uninstall', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'delete_on_uninstall']);
 
         // Notifications (Email/SMS)
@@ -129,6 +133,15 @@ class Settings
             return;
         }
         echo '<div class="wrap"><h1>' . esc_html__('ClassFlow Pro Settings', 'classflow-pro') . '</h1>';
+        // Show current effective value for key toggles for clarity
+        try {
+            $settings = get_option('cfp_settings', []);
+            $require_login = !empty($settings['require_login_to_book']);
+            echo '<div class="notice notice-info" style="margin-top:12px;">'
+                . '<p><strong>' . esc_html__('Require Login To Book:', 'classflow-pro') . '</strong> '
+                . ($require_login ? esc_html__('Enabled', 'classflow-pro') : esc_html__('Disabled', 'classflow-pro'))
+                . '</p></div>';
+        } catch (\Throwable $e) {}
         echo '<form method="post" action="options.php">';
         settings_fields('cfp_settings_group');
         do_settings_sections('classflow-pro');

@@ -57,6 +57,13 @@ class Plugin
     {
         wp_register_style('cfp-frontend', CFP_PLUGIN_URL . 'assets/css/frontend.css', [], '1.0.0');
         wp_register_script('cfp-booking', CFP_PLUGIN_URL . 'assets/js/booking.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-calendar', CFP_PLUGIN_URL . 'assets/js/calendar.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-step', CFP_PLUGIN_URL . 'assets/js/step-booking.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-intake', CFP_PLUGIN_URL . 'assets/js/intake.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-portal', CFP_PLUGIN_URL . 'assets/js/portal.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-client', CFP_PLUGIN_URL . 'assets/js/client.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-checkout-success', CFP_PLUGIN_URL . 'assets/js/checkout-success.js', ['jquery'], '1.0.0', true);
+        wp_register_script('cfp-waitlist-response', CFP_PLUGIN_URL . 'assets/js/waitlist-response.js', ['jquery'], '1.0.0', true);
         $settings = [
             'restUrl' => esc_url_raw(rest_url('classflow/v1/')),
             'nonce' => wp_create_nonce('wp_rest'),
@@ -67,12 +74,15 @@ class Plugin
             'useStripeCheckout' => (bool) Admin\Settings::get('stripe_use_checkout', 0),
             'intakePageUrl' => esc_url_raw(Admin\Settings::get('intake_page_url', '')),
             'isLoggedIn' => is_user_logged_in(),
+            'requireLoginToBook' => (bool) Admin\Settings::get('require_login_to_book', 0),
         ];
         wp_localize_script('cfp-booking', 'CFP_DATA', $settings);
         // Share same data to other frontend scripts if enqueued
+        wp_localize_script('cfp-calendar', 'CFP_DATA', $settings);
         wp_localize_script('cfp-step', 'CFP_DATA', $settings);
         wp_localize_script('cfp-intake', 'CFP_DATA', $settings);
         wp_localize_script('cfp-checkout-success', 'CFP_DATA', $settings);
+        wp_localize_script('cfp-waitlist-response', 'CFP_DATA', $settings);
     }
 
     public function enqueue_admin_assets(): void

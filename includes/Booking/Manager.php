@@ -43,6 +43,17 @@ class Manager
         $email = $customer['email'] ?? '';
         $amount_cents = (int)$schedule['price_cents'];
         $currency = $schedule['currency'] ?: Settings::get('currency', 'usd');
+        if ($amount_cents <= 0) {
+            // Fallback to class price if schedule has no explicit price
+            try {
+                global $wpdb; $cls=$wpdb->prefix.'cfp_classes';
+                $row = $wpdb->get_row($wpdb->prepare("SELECT price_cents, currency FROM $cls WHERE id = %d", (int)$schedule['class_id']), ARRAY_A);
+                if ($row) {
+                    $amount_cents = max(0, (int)$row['price_cents']);
+                    if (!empty($row['currency'])) $currency = $row['currency'];
+                }
+            } catch (\Throwable $e) {}
+        }
 
         $credits_used = 0;
         $status = 'pending';
@@ -303,10 +314,22 @@ class Manager
         if (!$schedule) return;
         if ($booked >= (int)$schedule['capacity']) return;
         $wl = $wpdb->prefix . 'cfp_waitlist';
-        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wl WHERE schedule_id = %d ORDER BY created_at ASC LIMIT 1", $schedule_id), ARRAY_A);
+        // Get earliest queued request
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wl WHERE schedule_id = %d AND status='queued' ORDER BY created_at ASC LIMIT 1", $schedule_id), ARRAY_A);
         if (!$row) return;
-        try { \ClassFlowPro\Notifications\Mailer::waitlist_open($schedule_id, $row['email']); } catch (\Throwable $e) { error_log('[CFP] waitlist notify error: ' . $e->getMessage()); }
-        $wpdb->delete($wl, ['id' => $row['id']], ['%d']);
+        $token = wp_generate_password(32, false, false);
+        $hold_mins = (int)\ClassFlowPro\Admin\Settings::get('waitlist_hold_minutes', 60);
+        $expires_at = gmdate('Y-m-d H:i:s', time() + max(5, $hold_mins)*60);
+        $wpdb->update($wl, [ 'token' => $token, 'status' => 'offered', 'notified_at' => gmdate('Y-m-d H:i:s'), 'expires_at' => $expires_at ], ['id' => (int)$row['id']], ['%s','%s','%s','%s'], ['%d']);
+        // Notify via email/SMS with accept/deny links
+        try { \ClassFlowPro\Notifications\Mailer::waitlist_offer($schedule_id, $row['email'], $token); } catch (\Throwable $e) { error_log('[CFP] waitlist offer mail error: ' . $e->getMessage()); }
+        try { if (!empty($row['user_id'])) \ClassFlowPro\Notifications\Sms::waitlist_offer($schedule_id, (int)$row['user_id'], $token); } catch (\Throwable $e) { error_log('[CFP] waitlist offer sms error: ' . $e->getMessage()); }
+    }
+
+    // Expose minimal wrapper for public route to promote next after decline
+    public static function promote_waitlist_public(int $schedule_id): void
+    {
+        self::promote_waitlist($schedule_id);
     }
 
     // Admin reschedule of a single booking to another schedule (capacity-checked). Sends rescheduled email if notify.

@@ -113,6 +113,10 @@ class Activator
             schedule_id BIGINT UNSIGNED NOT NULL,
             user_id BIGINT UNSIGNED NULL,
             email VARCHAR(191) NOT NULL,
+            token VARCHAR(64) NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'queued',
+            notified_at DATETIME NULL,
+            expires_at DATETIME NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY schedule_id (schedule_id),
@@ -299,6 +303,10 @@ class Activator
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ADD INDEX idx_bookings_sched_status (schedule_id, status)"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ADD INDEX idx_bookings_customer_email (customer_email)"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD INDEX idx_waitlist_created (created_at)"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN token VARCHAR(64) NULL"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'queued'"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN notified_at DATETIME NULL"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN expires_at DATETIME NULL"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_instructors ADD UNIQUE INDEX uniq_instructors_email (email)"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_private_requests ADD INDEX idx_private_requests_instr_status (instructor_id, status)"); } catch (\Throwable $e) {}
 

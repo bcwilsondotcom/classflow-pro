@@ -93,6 +93,18 @@ class Routes
             },
         ]);
 
+        // Auth helpers for modal login/register
+        register_rest_route('classflow/v1', '/login', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'login_modal'],
+            'permission_callback' => function () { return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/register', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'register_modal'],
+            'permission_callback' => function () { return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+
         // Admin: cancel a single booking with action (refund|credit|cancel|auto)
         register_rest_route('classflow-pro/v1', '/bookings/(?P<id>\\d+)/admin_cancel', [
             'methods' => 'POST',
@@ -111,6 +123,16 @@ class Routes
             'methods' => 'POST',
             'callback' => [self::class, 'waitlist_join'],
             'permission_callback' => function () { return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/waitlist/accept', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'waitlist_accept'],
+            'permission_callback' => '__return_true',
+        ]);
+        register_rest_route('classflow/v1', '/waitlist/deny', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'waitlist_deny'],
+            'permission_callback' => '__return_true',
         ]);
 
         register_rest_route('classflow/v1', '/payment_intent', [
@@ -280,6 +302,7 @@ class Routes
         $date_from = $req['date_from'] ? gmdate('Y-m-d H:i:s', strtotime($req['date_from'])) : gmdate('Y-m-d H:i:s');
         $date_to = $req['date_to'] ? gmdate('Y-m-d H:i:s', strtotime($req['date_to'])) : null;
         $s = $wpdb->prefix . 'cfp_schedules';
+        $c = $wpdb->prefix . 'cfp_classes';
         $b = $wpdb->prefix . 'cfp_bookings';
         $where = $wpdb->prepare("WHERE s.class_id = %d AND s.start_time >= %s", $class_id, $date_from);
         if ($date_to) {
@@ -288,11 +311,23 @@ class Routes
         $where .= " AND COALESCE(s.status,'active') <> 'cancelled'";
         $sql = "SELECT s.*, (
                     s.capacity - (SELECT COUNT(*) FROM $b bb WHERE bb.schedule_id = s.id AND bb.status IN ('pending','confirmed'))
-                ) AS seats_left
-                FROM $s s $where HAVING seats_left > 0 ORDER BY s.start_time ASC LIMIT 200";
+                ) AS seats_left,
+                c.price_cents AS class_price_cents,
+                c.currency AS class_currency
+                FROM $s s LEFT JOIN $c c ON c.id = s.class_id
+                $where HAVING seats_left > 0 ORDER BY s.start_time ASC LIMIT 200";
         $rows = $wpdb->get_results($sql, ARRAY_A);
         // Add titles
         foreach ($rows as &$row) {
+            // Price fallback
+            $row['price_cents'] = isset($row['price_cents']) ? (int)$row['price_cents'] : 0;
+            if ($row['price_cents'] <= 0) {
+                $row['price_cents'] = isset($row['class_price_cents']) ? (int)$row['class_price_cents'] : 0;
+                if (empty($row['currency']) && !empty($row['class_currency'])) {
+                    $row['currency'] = $row['class_currency'];
+                }
+            }
+            unset($row['class_price_cents'], $row['class_currency']);
             $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
             $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
             $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
@@ -450,7 +485,61 @@ class Routes
         global $wpdb;
         $waitlist = $wpdb->prefix . 'cfp_waitlist';
         $wpdb->insert($waitlist, [ 'schedule_id' => $schedule_id, 'user_id' => $user_id, 'email' => $email ], ['%d','%d','%s']);
+        try { \ClassFlowPro\Notifications\Mailer::waitlist_joined($schedule_id, $email); } catch (\Throwable $e) {}
+        try { if ($user_id) \ClassFlowPro\Notifications\Sms::waitlist_open($schedule_id, $user_id); } catch (\Throwable $e) {}
         return rest_ensure_response(['status' => 'joined']);
+    }
+
+    // Public endpoints for waitlist offer response
+    public static function waitlist_accept(WP_REST_Request $req)
+    {
+        $token = sanitize_text_field($req->get_param('token'));
+        if (!$token) return new WP_Error('cfp_invalid_request', __('Missing token', 'classflow-pro'), ['status' => 400]);
+        global $wpdb; $wl=$wpdb->prefix.'cfp_waitlist'; $sc=$wpdb->prefix.'cfp_schedules';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wl WHERE token = %s AND status='offered'", $token), ARRAY_A);
+        if (!$row) return new WP_Error('cfp_not_found', __('Offer not found or expired', 'classflow-pro'), ['status' => 404]);
+        if (!empty($row['expires_at']) && strtotime($row['expires_at'].' UTC') < time()) return new WP_Error('cfp_expired', __('Offer expired', 'classflow-pro'), ['status' => 410]);
+        $schedule = $wpdb->get_row($wpdb->prepare("SELECT * FROM $sc WHERE id = %d", (int)$row['schedule_id']), ARRAY_A);
+        if (!$schedule) return new WP_Error('cfp_not_found', __('Schedule not found', 'classflow-pro'), ['status' => 404]);
+        // Use credits if available; otherwise pending payment
+        $customer = [ 'user_id' => $row['user_id'] ?: null, 'email' => $row['email'], 'name' => '' ];
+        $result = \ClassFlowPro\Booking\Manager::book((int)$row['schedule_id'], $customer, true);
+        if (is_wp_error($result)) return $result;
+        // Mark waitlist row
+        $wpdb->update($wl, [ 'status' => 'accepted' ], ['id' => (int)$row['id']], ['%s'], ['%d']);
+        // If amount due, create Stripe Checkout session and return URL
+        $checkout = null;
+        if (!empty($result['amount_cents']) && (int)$result['amount_cents'] > 0) {
+            $session = self::create_checkout_for_booking_id((int)$result['booking_id']);
+            if (is_wp_error($session)) { /* ignore here */ } else { $checkout = $session['url'] ?? null; }
+        }
+        return rest_ensure_response([ 'ok' => true, 'booking' => $result, 'checkout_url' => $checkout ]);
+    }
+
+    public static function waitlist_deny(WP_REST_Request $req)
+    {
+        $token = sanitize_text_field($req->get_param('token'));
+        if (!$token) return new WP_Error('cfp_invalid_request', __('Missing token', 'classflow-pro'), ['status' => 400]);
+        global $wpdb; $wl=$wpdb->prefix.'cfp_waitlist';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $wl WHERE token = %s AND status='offered'", $token), ARRAY_A);
+        if (!$row) return new WP_Error('cfp_not_found', __('Offer not found or expired', 'classflow-pro'), ['status' => 404]);
+        $wpdb->update($wl, [ 'status' => 'declined' ], ['id' => (int)$row['id']], ['%s'], ['%d']);
+        // Optionally promote next in line
+        try { \ClassFlowPro\Booking\Manager::promote_waitlist_public((int)$row['schedule_id']); } catch (\Throwable $e) {}
+        return rest_ensure_response([ 'ok' => true ]);
+    }
+
+    // helper to create checkout for a booking_id (no auth)
+    private static function create_checkout_for_booking_id(int $booking_id)
+    {
+        global $wpdb; $book=$wpdb->prefix.'cfp_bookings';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $book WHERE id = %d", $booking_id), ARRAY_A);
+        if (!$row) return new \WP_Error('cfp_not_found', __('Booking not found', 'classflow-pro'), ['status' => 404]);
+        $req = new \WP_REST_Request('POST');
+        $req->set_param('booking_id', $booking_id);
+        $session = self::create_checkout_session($req);
+        if (is_wp_error($session)) return $session;
+        return $session;
     }
 
     public static function create_payment_intent(WP_REST_Request $req)
@@ -506,6 +595,38 @@ class Routes
         // Attach session id to booking for reference
         $wpdb->update($bookings, ['payment_intent_id' => $session['id']], ['id' => $booking_id], ['%s'], ['%d']);
         return rest_ensure_response(['id' => $session['id'], 'url' => $session['url']]);
+    }
+
+    public static function login_modal(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $user_login = sanitize_text_field($data['user_login'] ?? '');
+        $password = (string)($data['password'] ?? '');
+        $remember = !empty($data['remember']);
+        if (!$user_login || !$password) return new \WP_Error('cfp_invalid', __('Missing credentials', 'classflow-pro'), ['status' => 400]);
+        $creds = [ 'user_login' => $user_login, 'user_password' => $password, 'remember' => $remember ];
+        $user = wp_signon($creds, false);
+        if (is_wp_error($user)) return $user;
+        return rest_ensure_response(['ok' => true, 'user_id' => (int)$user->ID]);
+    }
+
+    public static function register_modal(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $email = sanitize_email($data['email'] ?? '');
+        $password = (string)($data['password'] ?? '');
+        $name = sanitize_text_field($data['name'] ?? '');
+        if (!$email || !$password) return new \WP_Error('cfp_invalid', __('Email and password are required', 'classflow-pro'), ['status' => 400]);
+        if (email_exists($email)) return new \WP_Error('cfp_exists', __('Email already registered', 'classflow-pro'), ['status' => 400]);
+        $username = sanitize_user(current(explode('@', $email)));
+        if (username_exists($username)) { $username .= '_' . wp_generate_password(4, false, false); }
+        $user_id = wp_create_user($username, $password, $email);
+        if (is_wp_error($user_id)) return $user_id;
+        if ($name) { wp_update_user(['ID' => $user_id, 'display_name' => $name]); }
+        // Auto sign in
+        $user = wp_signon([ 'user_login' => $username, 'user_password' => $password, 'remember' => true ], false);
+        if (is_wp_error($user)) return $user;
+        return rest_ensure_response(['ok' => true, 'user_id' => (int)$user_id]);
     }
 
     public static function purchase_package(WP_REST_Request $req)

@@ -120,6 +120,18 @@ class Sms
         self::send_to_number($to, $msg);
     }
 
+    public static function waitlist_offer(int $schedule_id, int $user_id, string $token): void
+    {
+        if (!self::enabled_for_customers()) return;
+        $to = self::phone_for_user($user_id); if(!$to) return;
+        $url = \ClassFlowPro\Admin\Settings::get('waitlist_response_page_url', '');
+        if (!$url) return;
+        $accept = add_query_arg([ 'action' => 'accept', 'token' => $token ], $url);
+        $deny = add_query_arg([ 'action' => 'deny', 'token' => $token ], $url);
+        $msg = '[' . wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES) . "] Spot Available: Accept " . $accept . " or Decline " . $deny;
+        self::send_to_number($to, $msg);
+    }
+
     public static function booking_reminder(int $booking_id): void
     {
         if (!self::enabled_for_customers()) return;
@@ -133,4 +145,3 @@ class Sms
         self::send_to_number($to, $msg);
     }
 }
-
