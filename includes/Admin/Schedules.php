@@ -63,52 +63,765 @@ class Schedules
 
         // Modal for schedule details/actions
         ?>
-        <div id="cfp-sched-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;align-items:center;justify-content:center;">
-            <div style="background:#fff;border-radius:8px;max-width:640px;width:95%;padding:16px;">
-                <h2 style="margin-top:0;"><span class="cfp-sched-title"><?php esc_html_e('Schedule Details', 'classflow-pro'); ?></span></h2>
-                <div class="cfp-sched-info" style="margin-bottom:12px;color:#475569;"></div>
-                <div class="cfp-sched-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
-                    <button class="button cfp-act-preview"><?php esc_html_e('Preview Email', 'classflow-pro'); ?></button>
-                    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="cfp-sched-notify" checked> <?php esc_html_e('Email attendees', 'classflow-pro'); ?></label>
-                    <label><?php esc_html_e('Attendee action', 'classflow-pro'); ?>
-                        <select class="cfp-sched-action">
-                            <option value="auto"><?php esc_html_e('Auto (refund if paid, return credit if used)', 'classflow-pro'); ?></option>
-                            <option value="refund"><?php esc_html_e('Refund', 'classflow-pro'); ?></option>
-                            <option value="credit"><?php esc_html_e('Credit', 'classflow-pro'); ?></option>
-                            <option value="cancel"><?php esc_html_e('Cancel only', 'classflow-pro'); ?></option>
-                        </select>
-                    </label>
-                    <button class="button cfp-act-cancel"><?php esc_html_e('Cancel Session', 'classflow-pro'); ?></button>
-                    <button class="button cfp-act-refresh"><?php esc_html_e('Refresh Attendees', 'classflow-pro'); ?></button>
+        <div id="cfp-sched-modal" class="cfp-modal-overlay" style="display:none;">
+            <div class="cfp-modal-container">
+                <div class="cfp-modal-header">
+                    <div class="cfp-modal-title-wrapper">
+                        <h2 class="cfp-modal-title">
+                            <span class="cfp-sched-title"><?php esc_html_e('Class Session Details', 'classflow-pro'); ?></span>
+                        </h2>
+                        <div class="cfp-sched-info"></div>
+                    </div>
+                    <button class="cfp-modal-close cfp-act-close" aria-label="Close">×</button>
                 </div>
-                <div style="margin-bottom:12px;">
-                    <label><?php esc_html_e('Email message (optional)', 'classflow-pro'); ?><br>
-                        <textarea class="cfp-sched-note" rows="3" style="width:100%;"></textarea>
-                    </label>
+                
+                <div class="cfp-modal-body">
+                    <!-- Quick Actions Section -->
+                    <div class="cfp-modal-section cfp-quick-actions">
+                        <h3 class="cfp-section-title">
+                            <span class="cfp-section-icon">⚡</span>
+                            <?php esc_html_e('Quick Actions', 'classflow-pro'); ?>
+                        </h3>
+                        <div class="cfp-action-buttons">
+                            <button class="cfp-action-btn cfp-btn-edit cfp-act-edit">
+                                <span class="cfp-btn-icon">✏️</span>
+                                <?php esc_html_e('Edit Session', 'classflow-pro'); ?>
+                            </button>
+                            <button class="cfp-action-btn cfp-btn-cancel cfp-act-cancel">
+                                <span class="cfp-btn-icon">❌</span>
+                                <?php esc_html_e('Cancel Session', 'classflow-pro'); ?>
+                            </button>
+                            <button class="cfp-action-btn cfp-btn-cancel-all cfp-act-cancel-all">
+                                <span class="cfp-btn-icon">🚫</span>
+                                <?php esc_html_e('Cancel Future Sessions', 'classflow-pro'); ?>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Edit Session Section (collapsible) -->
+                    <div class="cfp-modal-section cfp-edit-section" style="display:none;">
+                        <h3 class="cfp-section-title">
+                            <span class="cfp-section-icon">✏️</span>
+                            <?php esc_html_e('Edit Session Details', 'classflow-pro'); ?>
+                        </h3>
+                        <div class="cfp-compact-form">
+                            <div class="cfp-form-row">
+                                <div class="cfp-form-group">
+                                    <label class="cfp-form-label"><?php esc_html_e('Instructor', 'classflow-pro'); ?></label>
+                                    <select class="cfp-edit-instructor cfp-form-control"></select>
+                                </div>
+                                <div class="cfp-form-group">
+                                    <label class="cfp-form-label"><?php esc_html_e('Location', 'classflow-pro'); ?></label>
+                                    <select class="cfp-edit-location cfp-form-control"></select>
+                                </div>
+                            </div>
+                            <div class="cfp-form-row">
+                                <div class="cfp-form-group">
+                                    <label class="cfp-form-label"><?php esc_html_e('Date', 'classflow-pro'); ?></label>
+                                    <input type="date" class="cfp-edit-date cfp-form-control">
+                                </div>
+                                <div class="cfp-form-group">
+                                    <label class="cfp-form-label"><?php esc_html_e('Time', 'classflow-pro'); ?></label>
+                                    <input type="time" class="cfp-edit-time cfp-form-control">
+                                </div>
+                            </div>
+                            <div class="cfp-form-actions">
+                                <button class="cfp-primary-btn cfp-act-update">
+                                    <span class="cfp-btn-icon">💾</span>
+                                    <?php esc_html_e('Save Changes', 'classflow-pro'); ?>
+                                </button>
+                                <button class="cfp-secondary-btn cfp-cancel-edit">
+                                    <?php esc_html_e('Cancel', 'classflow-pro'); ?>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cancellation Settings (collapsible) -->
+                    <div class="cfp-modal-section cfp-cancel-settings" style="display:none;">
+                        <h3 class="cfp-section-title">
+                            <span class="cfp-section-icon">⚙️</span>
+                            <?php esc_html_e('Cancellation Settings', 'classflow-pro'); ?>
+                        </h3>
+                        
+                        <div class="cfp-cancel-options">
+                            <div class="cfp-option-row">
+                                <label class="cfp-checkbox-label">
+                                    <input type="checkbox" class="cfp-sched-notify" checked>
+                                    <span><?php esc_html_e('Email attendees about changes', 'classflow-pro'); ?></span>
+                                </label>
+                                <div class="cfp-refund-option">
+                                    <label class="cfp-form-label"><?php esc_html_e('Refund policy', 'classflow-pro'); ?></label>
+                                    <select class="cfp-sched-action cfp-form-control">
+                                        <option value="auto"><?php esc_html_e('Auto (smart refund/credit)', 'classflow-pro'); ?></option>
+                                        <option value="refund"><?php esc_html_e('Full Refund', 'classflow-pro'); ?></option>
+                                        <option value="credit"><?php esc_html_e('Account Credit', 'classflow-pro'); ?></option>
+                                        <option value="cancel"><?php esc_html_e('Cancel Only', 'classflow-pro'); ?></option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="cfp-form-group">
+                                <label class="cfp-form-label"><?php esc_html_e('Message to attendees (optional)', 'classflow-pro'); ?></label>
+                                <textarea class="cfp-sched-note cfp-form-control" rows="2" placeholder="<?php esc_attr_e('Add a personal message...', 'classflow-pro'); ?>"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Bulk Cancel Section -->
+                        <div class="cfp-bulk-cancel-section" style="display:none;">
+                            <div class="cfp-divider"></div>
+                            <h4 class="cfp-subsection-title"><?php esc_html_e('Cancel Multiple Sessions', 'classflow-pro'); ?></h4>
+                            
+                            <div class="cfp-date-range-row">
+                                <div class="cfp-date-input">
+                                    <label class="cfp-form-label"><?php esc_html_e('From', 'classflow-pro'); ?></label>
+                                    <input type="date" class="cfp-bulk-from cfp-form-control">
+                                </div>
+                                <div class="cfp-date-input">
+                                    <label class="cfp-form-label"><?php esc_html_e('To', 'classflow-pro'); ?></label>
+                                    <input type="date" class="cfp-bulk-to cfp-form-control">
+                                </div>
+                            </div>
+                            
+                            <div class="cfp-filter-row">
+                                <label class="cfp-checkbox-label">
+                                    <input type="checkbox" class="cfp-bulk-only-location" checked>
+                                    <span><?php esc_html_e('Only this location', 'classflow-pro'); ?></span>
+                                </label>
+                                <label class="cfp-checkbox-label">
+                                    <input type="checkbox" class="cfp-bulk-match-time" checked>
+                                    <span><?php esc_html_e('Same time', 'classflow-pro'); ?></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Messages -->
+                    <div class="cfp-sched-msg" style="display:none;"></div>
+
+                    <!-- Attendees List -->
+                    <div class="cfp-modal-section cfp-attendees-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 class="cfp-section-title" style="margin-bottom: 0;">
+                                <span class="cfp-section-icon">👥</span>
+                                <?php esc_html_e('Attendees', 'classflow-pro'); ?>
+                                <span class="cfp-attendee-count"></span>
+                            </h3>
+                            <button class="cfp-secondary-btn cfp-act-refresh" style="padding: 6px 12px; font-size: 13px;">
+                                <span class="cfp-btn-icon" style="font-size: 14px;">🔄</span>
+                                <?php esc_html_e('Refresh', 'classflow-pro'); ?>
+                            </button>
+                        </div>
+                        
+                        <!-- Bulk Actions Bar -->
+                        <div class="cfp-bulk-actions-bar" style="display:none;">
+                            <div class="cfp-bulk-select-info">
+                                <label class="cfp-checkbox-label">
+                                    <input type="checkbox" class="cfp-select-all-attendees">
+                                    <span class="cfp-selected-count">0 selected</span>
+                                </label>
+                            </div>
+                            <div class="cfp-bulk-actions">
+                                <select class="cfp-bulk-action cfp-form-control" style="font-size: 13px;">
+                                    <option value=""><?php esc_html_e('Bulk Actions', 'classflow-pro'); ?></option>
+                                    <option value="reschedule"><?php esc_html_e('Reschedule to another session', 'classflow-pro'); ?></option>
+                                    <option value="refund"><?php esc_html_e('Cancel and refund', 'classflow-pro'); ?></option>
+                                    <option value="credit"><?php esc_html_e('Cancel and credit', 'classflow-pro'); ?></option>
+                                </select>
+                                <select class="cfp-move-target cfp-form-control" style="font-size: 13px; display:none;">
+                                    <option value=""><?php esc_html_e('Select session...', 'classflow-pro'); ?></option>
+                                </select>
+                                <button class="cfp-primary-btn cfp-apply-bulk" style="padding: 6px 16px; font-size: 13px;" disabled>
+                                    <?php esc_html_e('Apply', 'classflow-pro'); ?>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="cfp-sched-attendees">
+                            <div class="cfp-loading">
+                                <span class="cfp-spinner"></span>
+                                <?php esc_html_e('Loading attendees...', 'classflow-pro'); ?>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="cfp-sched-edit" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                    <label><?php esc_html_e('Instructor', 'classflow-pro'); ?> <select class="cfp-edit-instructor"></select></label>
-                    <label><?php esc_html_e('Location', 'classflow-pro'); ?> <select class="cfp-edit-location"></select></label>
-                    <label><?php esc_html_e('New Date', 'classflow-pro'); ?> <input type="date" class="cfp-edit-date"></label>
-                    <label><?php esc_html_e('New Time', 'classflow-pro'); ?> <input type="time" class="cfp-edit-time"></label>
-                    <button class="button button-primary cfp-act-update"><?php esc_html_e('Apply Changes', 'classflow-pro'); ?></button>
-                </div>
-                <div class="cfp-sched-move" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                    <label><?php esc_html_e('Move attendees to', 'classflow-pro'); ?> <select class="cfp-move-target"></select></label>
-                    <button class="button cfp-act-move"><?php esc_html_e('Move Attendees', 'classflow-pro'); ?></button>
-                </div>
-                <div class="cfp-sched-preview" style="display:none;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-top:8px;">
-                    <strong><?php esc_html_e('Email Preview', 'classflow-pro'); ?>:</strong>
-                    <div class="cfp-prev-subj" style="margin:6px 0;"></div>
-                    <div class="cfp-prev-body" style="background:#fff;padding:8px;border-radius:4px;"></div>
-                </div>
-                <div class="cfp-sched-msg" style="margin-bottom:8px;color:#0f766e;"></div>
-                <div class="cfp-sched-attendees" style="max-height:240px;overflow:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;">
-                    <em><?php esc_html_e('No attendees yet.', 'classflow-pro'); ?></em>
-                </div>
-                <div style="margin-top:12px;text-align:right;"><button class="button cfp-act-close"><?php esc_html_e('Close', 'classflow-pro'); ?></button></div>
             </div>
         </div>
+        
+        <style>
+        /* Modal Overlay */
+        .cfp-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 100000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Modal Container */
+        .cfp-modal-container {
+            background: #ffffff;
+            border-radius: 16px;
+            max-width: 780px;
+            width: 95%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Modal Header */
+        .cfp-modal-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .cfp-modal-title-wrapper {
+            flex: 1;
+        }
+
+        .cfp-modal-title {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .cfp-sched-info {
+            margin-top: 8px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .cfp-modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: #f3f4f6;
+            color: #6b7280;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cfp-modal-close:hover {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+        /* Modal Body */
+        .cfp-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* Sections */
+        .cfp-modal-section {
+            margin-bottom: 28px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .cfp-section-title {
+            margin: 0 0 16px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cfp-section-icon {
+            font-size: 18px;
+        }
+
+        /* Quick Actions */
+        .cfp-quick-actions {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-color: #bfdbfe;
+            padding: 16px !important;
+        }
+
+        .cfp-action-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .cfp-action-btn {
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .cfp-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        .cfp-btn-icon {
+            font-size: 16px;
+        }
+
+        .cfp-btn-preview:hover { background: #f0f9ff; border-color: #3b82f6; color: #1e40af; }
+        .cfp-btn-refresh:hover { background: #f0fdf4; border-color: #22c55e; color: #15803d; }
+        .cfp-btn-cancel:hover { background: #fef2f2; border-color: #ef4444; color: #b91c1c; }
+        .cfp-btn-cancel-all:hover { background: #fefce8; border-color: #f59e0b; color: #b45309; }
+        .cfp-btn-edit:hover { background: #f3f0ff; border-color: #8b5cf6; color: #6d28d9; }
+
+        /* Compact Form Layouts */
+        .cfp-compact-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .cfp-form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .cfp-form-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        /* Cancel Options */
+        .cfp-option-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            align-items: start;
+            margin-bottom: 16px;
+        }
+
+        .cfp-refund-option {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cfp-date-range-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .cfp-date-input {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .cfp-filter-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .cfp-divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 16px 0;
+        }
+
+        .cfp-subsection-title {
+            margin: 0 0 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        /* Forms - keeping old selector for compatibility */
+        .cfp-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .cfp-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cfp-form-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .cfp-form-control {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+            background: white;
+        }
+
+        .cfp-form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+        }
+
+        /* Primary Button */
+        .cfp-primary-btn {
+            padding: 10px 20px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cfp-primary-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        }
+
+        /* Secondary Button */
+        .cfp-secondary-btn {
+            padding: 10px 20px;
+            background: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cfp-secondary-btn:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        /* Settings Row */
+        .cfp-settings-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: start;
+        }
+
+        .cfp-setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cfp-form-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .cfp-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        .cfp-checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        /* Bulk Section */
+        .cfp-bulk-section {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .cfp-subsection-title {
+            margin: 0 0 8px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .cfp-help-text {
+            margin: 0 0 16px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        .cfp-bulk-controls {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .cfp-date-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .cfp-date-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .cfp-filter-options {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            padding-top: 12px;
+            border-top: 1px solid #f3f4f6;
+        }
+
+        /* Attendees */
+        .cfp-attendees-section {
+            background: white;
+        }
+
+        .cfp-attendee-count {
+            background: #3b82f6;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .cfp-bulk-actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            gap: 16px;
+        }
+
+        .cfp-bulk-select-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .cfp-selected-count {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .cfp-bulk-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .cfp-sched-attendees {
+            max-height: 300px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .cfp-attendee-row {
+            display: grid;
+            grid-template-columns: 32px 2fr 100px 120px 100px;
+            gap: 12px;
+            align-items: center;
+            padding: 8px 0;
+        }
+
+        .cfp-attendee-row.header {
+            font-weight: 600;
+            color: #374151;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .cfp-attendee-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* Loading Spinner */
+        .cfp-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 20px;
+            color: #6b7280;
+        }
+
+        .cfp-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Status Messages */
+        .cfp-sched-msg {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .cfp-sched-msg.success {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+        }
+
+        .cfp-sched-msg.error {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+
+        /* Preview */
+        .cfp-preview-content {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .cfp-prev-subj {
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .cfp-prev-body {
+            color: #4b5563;
+            line-height: 1.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .cfp-action-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .cfp-modal-container {
+                max-width: 100%;
+                height: 100%;
+                max-height: 100%;
+                border-radius: 0;
+            }
+
+            .cfp-action-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .cfp-form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .cfp-option-row {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .cfp-date-range-row {
+                grid-template-columns: 1fr;
+            }
+
+            .cfp-filter-row {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .cfp-bulk-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .cfp-bulk-actions > * {
+                width: 100%;
+            }
+        }
+        </style>
         <?php
     }
     

@@ -117,34 +117,120 @@
     }
   }
   async function refreshAttendees(id){
-    const $m=$('#cfp-sched-modal'); const $box=$m.find('.cfp-sched-attendees').empty();
+    const $m=$('#cfp-sched-modal'); 
+    const $box=$m.find('.cfp-sched-attendees').html('<div class="cfp-loading"><span class="cfp-spinner"></span>Loading attendees...</div>');
+    const $count=$m.find('.cfp-attendee-count');
+    const $bulkBar=$m.find('.cfp-bulk-actions-bar');
     try{
       const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id+'/attendees', { headers: headers() });
       const rows=await res.json();
-      if (!res.ok || !Array.isArray(rows) || !rows.length){ $box.html('<em>No attendees.</em>'); return; }
-      // Table header
-      const $tbl=$('<div style="display:grid;grid-template-columns:1fr 120px 110px 90px;gap:6px;align-items:center;"></div>');
-      $tbl.append('<div style="font-weight:600;">Name</div><div style="font-weight:600;">Status</div><div style="font-weight:600;">Action</div><div></div>');
+      if (!res.ok || !Array.isArray(rows) || !rows.length){ 
+        $box.html('<div style="text-align:center;color:#6b7280;padding:20px;"><em>No attendees registered yet.</em></div>'); 
+        $count.hide();
+        $bulkBar.hide();
+        return; 
+      }
+      // Update count badge and show bulk actions
+      $count.text(rows.length).show();
+      if(rows.length > 0) $bulkBar.show();
+      
+      // Create table with checkboxes
+      const $tbl=$('<div class="cfp-attendee-table"></div>');
+      
+      // Header row
+      const $header=$('<div class="cfp-attendee-row header"></div>');
+      $header.append('<div><input type="checkbox" class="cfp-select-all-attendees cfp-attendee-checkbox"></div>');
+      $header.append('<div>Attendee</div>');
+      $header.append('<div>Status</div>');
+      $header.append('<div>Action</div>');
+      $header.append('<div></div>');
+      $tbl.append($header);
+      
       rows.forEach(r=>{
-        const name = r.display_name || r.user_email || r.customer_email || ('#'+r.id);
+        const name = r.display_name || r.user_email || r.customer_email || ('Guest #'+r.id);
         const status=r.status;
-        const $row=$('<div style="display:contents;"></div>');
-        $row.append('<div>'+name+'</div>');
-        $row.append('<div>'+status+'</div>');
+        const $row=$('<div class="cfp-attendee-row"></div>');
+        $row.data('booking-id', r.id);
+        
+        // Checkbox
+        $row.append('<div><input type="checkbox" class="cfp-attendee-select cfp-attendee-checkbox" data-id="'+r.id+'"></div>');
+        
+        // Name with avatar initial
+        const initial = name.charAt(0).toUpperCase();
+        const $nameCell = $('<div style="display:flex;align-items:center;gap:10px;"></div>');
+        $nameCell.append('<div style="width:32px;height:32px;background:#e0e7ff;color:#3730a3;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;">'+initial+'</div>');
+        $nameCell.append('<span style="color:#111827;">'+name+'</span>');
+        $row.append($nameCell);
+        
+        // Status badge
+        const statusColors = {
+          'confirmed': '#059669',
+          'pending': '#d97706',
+          'canceled': '#dc2626',
+          'waitlisted': '#7c3aed'
+        };
+        const statusBg = {
+          'confirmed': '#d1fae5',
+          'pending': '#fed7aa',
+          'canceled': '#fee2e2',
+          'waitlisted': '#ede9fe'
+        };
+        $row.append('<div><span style="padding:4px 8px;border-radius:6px;font-size:12px;font-weight:500;background:'+statusBg[status]+';color:'+statusColors[status]+';">'+status+'</span></div>');
+        
+        // Individual action select
         const selId='act-'+r.id;
-        const $sel=$('<select class="cfp-att-action" id="'+selId+'"><option value="auto">Auto</option><option value="refund">Refund</option><option value="credit">Credit</option><option value="cancel">Cancel</option></select>');
+        const $sel=$('<select class="cfp-form-control" id="'+selId+'" style="font-size:13px;padding:6px;"><option value="">Choose...</option><option value="cancel">Cancel</option><option value="refund">Refund</option><option value="credit">Credit</option></select>');
         $row.append($('<div></div>').append($sel));
-        const $btn=$('<button class="button">Apply</button>');
+        
+        // Individual apply button
+        const $btn=$('<button style="padding:6px 12px;background:#6b7280;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;transition:all 0.2s;">Apply</button>');
+        $btn.hover(
+          function(){ if($sel.val()) $(this).css('background','#3b82f6'); },
+          function(){ $(this).css('background','#6b7280'); }
+        );
+        $sel.on('change', function(){
+          if($(this).val()) $btn.css('background','#3b82f6');
+          else $btn.css('background','#6b7280');
+        });
         $btn.on('click', async function(){
-          const action=$sel.val(); const note=($m.find('.cfp-sched-note').val()||'').toString(); const body={ action, note, notify: $m.find('.cfp-sched-notify').is(':checked') };
+          const action=$sel.val();
+          if(!action) return;
+          const note=($m.find('.cfp-sched-note').val()||'').toString(); 
+          const body={ action, note, notify: $m.find('.cfp-sched-notify').is(':checked') };
           $btn.prop('disabled', true).text('Working…');
-          try{ const resp=await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+r.id+'/admin_cancel', { method:'POST', headers: headers(), body: JSON.stringify(body) }); const js=await resp.json(); if(!resp.ok){ alert(js && js.message ? js.message : 'Failed'); } else { await refreshAttendees(id); } }catch(e){ alert('Failed'); } finally { $btn.prop('disabled', false).text('Apply'); }
+          try{ 
+            const resp=await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+r.id+'/admin_cancel', { method:'POST', headers: headers(), body: JSON.stringify(body) }); 
+            const js=await resp.json(); 
+            if(!resp.ok){ 
+              alert(js && js.message ? js.message : 'Failed'); 
+            } else { 
+              await refreshAttendees(id); 
+            } 
+          }catch(e){ 
+            alert('Failed'); 
+          } finally { 
+            $btn.prop('disabled', false).text('Apply'); 
+          }
         });
         $row.append($('<div></div>').append($btn));
         $tbl.append($row);
       });
-      $box.append($tbl);
-    }catch(e){ $box.html('<em>Failed to load attendees.</em>'); }
+      $box.empty().append($tbl);
+      
+      // Update selected count when checkboxes change
+      updateSelectedCount();
+    }catch(e){ 
+      $box.html('<div style="text-align:center;color:#dc2626;padding:20px;"><em>Failed to load attendees.</em></div>'); 
+      $count.hide();
+      $bulkBar.hide();
+    }
+  }
+  
+  function updateSelectedCount(){
+    const $m=$('#cfp-sched-modal');
+    const selected=$m.find('.cfp-attendee-select:checked').length;
+    $m.find('.cfp-selected-count').text(selected + ' selected');
+    $m.find('.cfp-apply-bulk').prop('disabled', selected===0);
   }
   async function createSchedules(){
     const $msg = $('.cfp-msg').text('');
@@ -234,35 +320,91 @@
       $('#cfp-sched-modal').hide(); loadMonth(window.__cfpCurrent||new Date());
     }catch(e){ alert('Failed'); }
   }
-  async function moveAttendees(){
-    const id=parseInt($('#cfp-sched-modal').data('id')||0,10); if(!id)return;
-    const target=parseInt($('#cfp-sched-modal .cfp-move-target').val()||0,10); if(!target){ alert('Pick a target schedule'); return; }
-    const notify = $('#cfp-sched-modal .cfp-sched-notify').is(':checked');
-    try{ const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id+'/reschedule_to', { method:'POST', headers: headers(), body: JSON.stringify({ target_schedule_id: target, notify }) }); if(!res.ok){ alert('Failed'); return; } $('#cfp-sched-modal').hide(); loadMonth(window.__cfpCurrent||new Date()); }catch(e){ alert('Failed'); }
-  }
   async function openScheduleModal(s){
     const $m=$('#cfp-sched-modal').css('display','flex');
-    $m.data('id', s.id);
-    $m.find('.cfp-sched-title').text((s.class_title||('#'+s.class_id)));
+    $m.data('id', s.id).data('sched', s);
+    
+    // Update title and info
+    $m.find('.cfp-sched-title').text((s.class_title||('Class #'+s.class_id)));
+    
+    // Format the date/time nicely
     try{
       const tz = s.location_timezone || CFP_ADMIN.timezone;
-      $m.find('.cfp-sched-info').text(new Date(s.start_time+'Z').toLocaleString(undefined,{ timeZone: tz }));
-    }catch(e){ $m.find('.cfp-sched-info').text(new Date(s.start_time+'Z').toLocaleString()); }
+      const dt = new Date(s.start_time+'Z');
+      const endDt = new Date(s.end_time+'Z');
+      const dateStr = dt.toLocaleDateString(undefined, { 
+        timeZone: tz, 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const timeStr = dt.toLocaleTimeString(undefined, { 
+        timeZone: tz, 
+        hour: 'numeric', 
+        minute: '2-digit' 
+      }) + ' - ' + endDt.toLocaleTimeString(undefined, { 
+        timeZone: tz, 
+        hour: 'numeric', 
+        minute: '2-digit' 
+      });
+      const locationStr = s.location_name ? ' at ' + s.location_name : '';
+      const instructorStr = s.instructor_name ? ' with ' + s.instructor_name : '';
+      $m.find('.cfp-sched-info').html(
+        '<div style="display:flex;flex-direction:column;gap:4px;">' +
+        '<div><strong>' + dateStr + '</strong></div>' +
+        '<div>🕐 ' + timeStr + locationStr + instructorStr + '</div>' +
+        '</div>'
+      );
+    }catch(e){ 
+      $m.find('.cfp-sched-info').text(new Date(s.start_time+'Z').toLocaleString()); 
+    }
+    
+    // Hide/show status message
+    $m.find('.cfp-sched-msg').hide().removeClass('success error');
+    
+    // Prefill bulk cancel controls
+    try{
+      const tz = s.location_timezone || CFP_ADMIN.timezone;
+      const dt = new Date(s.start_time+'Z');
+      const dtLocalStr = dt.toLocaleString('sv-SE', { timeZone: tz, hour12:false });
+      const defaultFrom = dtLocalStr.slice(0,10);
+      $m.find('.cfp-bulk-from').val(defaultFrom);
+      $m.find('.cfp-bulk-to').val('');
+      $m.find('.cfp-bulk-only-location').prop('checked', true);
+      $m.find('.cfp-bulk-match-time').prop('checked', true);
+    }catch(e){}
+    
+    // Populate dropdowns
     const $ei=$m.find('.cfp-edit-instructor').empty().append($('.cfp-form-instructor').html());
     const $el=$m.find('.cfp-edit-location').empty().append($('.cfp-form-location').html());
     if (s.instructor_id) $ei.val(String(s.instructor_id));
     if (s.location_id) $el.val(String(s.location_id));
     $m.find('.cfp-edit-date').val((s.start_time||'').slice(0,10));
     $m.find('.cfp-edit-time').val((s.start_time||'').slice(11,16));
+    
+    // Clear previous email/note
+    $m.find('.cfp-sched-note').val('');
+    $m.find('.cfp-sched-preview').hide();
+    
+    // Load attendees
     await refreshAttendees(s.id);
+    
     // Populate move targets: all future schedules for same class
     try{
-      const params=new URLSearchParams(); params.set('class_id', s.class_id); params.set('date_from', new Date().toISOString().slice(0,10));
+      const params=new URLSearchParams(); 
+      params.set('class_id', s.class_id); 
+      params.set('date_from', new Date().toISOString().slice(0,10));
       const res=await fetch(withParams(CFP_ADMIN.restUrl+'schedules', params), { headers: headers() });
       const rows=await res.json();
       const $sel=$m.find('.cfp-move-target').empty();
-      $sel.append('<option value="">— Select —</option>');
-      (rows||[]).filter(r=>r.id!==s.id).forEach(r=>{ const dt=new Date(r.start_time+'Z').toLocaleString(); $sel.append('<option value="'+r.id+'">'+dt+'</option>'); });
+      $sel.append('<option value="">— Select a session —</option>');
+      (rows||[]).filter(r=>r.id!==s.id).forEach(r=>{ 
+        const dt=new Date(r.start_time+'Z');
+        const dateStr = dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        const timeStr = dt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        $sel.append('<option value="'+r.id+'">'+dateStr + ' at ' + timeStr+'</option>'); 
+      });
     }catch(e){}
   }
   async function applyScheduleChanges(){
@@ -315,21 +457,164 @@
     }catch(e){ $msg.text('Error creating schedules.'); }
   }
   function wire(){
-  async function moveAttendees(){ const $m=$('#cfp-sched-modal'); const id=parseInt($m.data('id')||0,10); const target=parseInt($m.find('.cfp-move-target').val()||0,10); if (!id || !target) { alert('Select a target schedule.'); return; } if (!confirm('Move all attendees to the selected schedule?')) return; const body={ notify: $m.find('.cfp-sched-notify').is(':checked'), target_schedule_id: target }; try{ const res=await fetch(CFP_ADMIN.adminRestUrl+'schedules/'+id+'/reschedule_to', { method:'POST', headers: headers(), body: JSON.stringify(body) }); const js=await res.json(); if (!res.ok){ alert(js.error||'Failed'); return; } $('#cfp-sched-modal .cfp-sched-msg').text('Moved '+(js.moved||0)+' attendee(s).'); await loadMonth(window.__cfpCurrent||new Date()); }catch(e){ $('#cfp-sched-modal .cfp-sched-msg').text('Move failed'); } }
-
     $(document).on('change','.cfp-dow-ck', function(){ const v=$(this).val(); const $t=$('.cfp-time-'+v); $t.prop('disabled', !$(this).is(':checked')); if ($(this).is(':checked') && !$t.val()) $t.val('09:00'); });
     $(document).on('change', '.cfp-form-class', async function(){ const id=parseInt($(this).val()||0,10); if (id) await fetchClassDetail(id); });
     $('.cfp-cal-prev').on('click', function(){ const c=window.__cfpCurrent||new Date(); window.__cfpCurrent=new Date(c.getFullYear(), c.getMonth()-1, 1); loadMonth(window.__cfpCurrent); });
     $('.cfp-cal-next').on('click', function(){ const c=window.__cfpCurrent||new Date(); window.__cfpCurrent=new Date(c.getFullYear(), c.getMonth()+1, 1); loadMonth(window.__cfpCurrent); });
     $('.cfp-filter-class,.cfp-filter-instructor,.cfp-filter-location,.cfp-filter-with-attendees').on('change', function(){ loadMonth(window.__cfpCurrent||new Date()); });
-    // Removed: auto-filter to only "my" classes. Users can select themselves via the instructor dropdown.
     $('.cfp-form-create').on('click', function(e){ e.preventDefault(); createSchedules(); });
     $(document).on('click', '.cfp-sched-pill', function(){ const s=$(this).data('sched'); openScheduleModal(s); });
     $(document).on('click', '#cfp-sched-modal .cfp-act-close', function(){ $('#cfp-sched-modal').hide(); });
     $(document).on('click', '#cfp-sched-modal .cfp-act-refresh', function(){ const id=parseInt($('#cfp-sched-modal').data('id')||0,10); if(id) refreshAttendees(id); });
     $(document).on('click', '#cfp-sched-modal .cfp-act-update', function(){ applyScheduleChanges(); });
-    $(document).on('click', '#cfp-sched-modal .cfp-act-cancel', function(){ cancelSchedule(); });
-    $(document).on('click', '#cfp-sched-modal .cfp-act-move', function(){ moveAttendees(); });
+    $(document).on('click', '#cfp-sched-modal .cfp-act-cancel', function(){ 
+      $('#cfp-sched-modal .cfp-cancel-settings').slideDown();
+      $('#cfp-sched-modal .cfp-edit-section').slideUp();
+      cancelSchedule(); 
+    });
+    
+    // Quick action handlers
+    $(document).on('click', '#cfp-sched-modal .cfp-act-edit', function(){
+      $('#cfp-sched-modal .cfp-edit-section').slideToggle();
+      $('#cfp-sched-modal .cfp-cancel-settings').slideUp();
+    });
+    
+    $(document).on('click', '#cfp-sched-modal .cfp-cancel-edit', function(){
+      $('#cfp-sched-modal .cfp-edit-section').slideUp();
+    });
+    
+    $(document).on('click', '#cfp-sched-modal .cfp-act-cancel-all', function(){
+      $('#cfp-sched-modal .cfp-cancel-settings').slideDown();
+      $('#cfp-sched-modal .cfp-bulk-cancel-section').slideDown();
+      $('#cfp-sched-modal .cfp-edit-section').slideUp();
+    });
+    
+    // Attendee selection handlers
+    $(document).on('change', '.cfp-select-all-attendees', function(){
+      const checked=$(this).is(':checked');
+      $('#cfp-sched-modal .cfp-attendee-select').prop('checked', checked);
+      updateSelectedCount();
+    });
+    $(document).on('change', '.cfp-attendee-select', function(){
+      updateSelectedCount();
+      const allChecked = $('#cfp-sched-modal .cfp-attendee-select:not(:checked)').length === 0;
+      $('#cfp-sched-modal .cfp-select-all-attendees').prop('checked', allChecked);
+    });
+    
+    // Bulk action dropdown
+    $(document).on('change', '.cfp-bulk-action', function(){
+      const action=$(this).val();
+      const $moveTarget=$('#cfp-sched-modal .cfp-move-target');
+      if(action==='reschedule'){
+        $moveTarget.show();
+      } else {
+        $moveTarget.hide();
+      }
+    });
+    
+    // Apply bulk action
+    $(document).on('click', '.cfp-apply-bulk', async function(){
+      const $m=$('#cfp-sched-modal');
+      const action=$m.find('.cfp-bulk-action').val();
+      if(!action){ alert('Please select an action'); return; }
+      
+      const selectedIds=[];
+      $m.find('.cfp-attendee-select:checked').each(function(){
+        selectedIds.push($(this).data('id'));
+      });
+      
+      if(selectedIds.length===0){ alert('No attendees selected'); return; }
+      
+      const $btn=$(this);
+      $btn.prop('disabled', true).text('Processing...');
+      
+      if(action==='reschedule'){
+        const targetId=parseInt($m.find('.cfp-move-target').val()||0,10);
+        if(!targetId){ alert('Please select a target session'); $btn.prop('disabled', false).text('Apply'); return; }
+        
+        // Reschedule selected attendees
+        let moved=0, failed=0;
+        for(const bookingId of selectedIds){
+          try{
+            const res=await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+bookingId+'/reschedule', {
+              method:'POST', headers: headers(), 
+              body: JSON.stringify({ target_schedule_id: targetId, notify: $m.find('.cfp-sched-notify').is(':checked') })
+            });
+            if(res.ok) moved++; else failed++;
+          }catch(e){ failed++; }
+        }
+        alert('Rescheduled '+moved+' attendee(s)' + (failed?' ('+failed+' failed)':''));
+      } else {
+        // Refund or credit selected attendees
+        let processed=0, failed=0;
+        for(const bookingId of selectedIds){
+          try{
+            const res=await fetch(CFP_ADMIN.adminRestUrl+'bookings/'+bookingId+'/admin_cancel', {
+              method:'POST', headers: headers(),
+              body: JSON.stringify({ 
+                action: action, // 'refund' or 'credit' directly
+                note: $m.find('.cfp-sched-note').val()||'',
+                notify: $m.find('.cfp-sched-notify').is(':checked')
+              })
+            });
+            if(res.ok) processed++; else failed++;
+          }catch(e){ failed++; }
+        }
+        const actionLabel = action === 'refund' ? 'Refunded' : 'Credited';
+        alert(actionLabel + ' ' + processed + ' attendee(s)' + (failed?' ('+failed+' failed)':''));
+      }
+      
+      $btn.prop('disabled', false).text('Apply');
+      await refreshAttendees(parseInt($m.data('id')||0,10));
+    });
+    $(document).on('click', '#cfp-sched-modal .cfp-act-cancel-all', async function(){
+    const $m=$('#cfp-sched-modal');
+    const schedData = $m.data('sched') || {};
+    const classId = parseInt(schedData.class_id||0,10);
+    if (!classId) { alert('Unable to determine class id.'); return; }
+    const notify = $('#cfp-sched-modal .cfp-sched-notify').is(':checked');
+    const action = ($('#cfp-sched-modal .cfp-sched-action').val()||'auto').toString();
+    const note = ($('#cfp-sched-modal .cfp-sched-note').val()||'').toString();
+    const onlyLoc = $('#cfp-sched-modal .cfp-bulk-only-location').is(':checked');
+    const matchTime = $('#cfp-sched-modal .cfp-bulk-match-time').is(':checked');
+    const from = ($('#cfp-sched-modal .cfp-bulk-from').val()||'');
+    const to = ($('#cfp-sched-modal .cfp-bulk-to').val()||'');
+    if (!confirm('Cancel matching future sessions for this class? This will refund/credit attendees per selected action.')) return;
+    try{
+      const body = { notify, action, note };
+      if (from) body.date_from = from + ' 00:00:00';
+      if (to) body.date_to = to + ' 23:59:59';
+      if (onlyLoc && schedData.location_id) body.location_id = parseInt(schedData.location_id,10);
+      if (matchTime){
+        // Derive weekday/time in the schedule's location timezone
+        try{
+          const tz = schedData.location_timezone || CFP_ADMIN.timezone;
+          const dt = new Date(schedData.start_time+'Z');
+          const parts = dt.toLocaleString('en-CA', { timeZone: tz, hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+          // parts like 2024-08-11, 07:00 – safer: compute weekday via toLocaleDateString with weekday option
+          const weekday = new Date(dt.toLocaleString('en-US', { timeZone: tz })).getDay(); // 0-6, 0=Sun
+          const timeHm = dt.toLocaleTimeString('en-GB', { timeZone: tz, hour:'2-digit', minute:'2-digit', hour12:false });
+          body.only_weekday = weekday; body.only_time_hm = timeHm;
+        }catch(e){}
+      }
+      const res = await fetch(CFP_ADMIN.adminRestUrl + 'classes/'+classId+'/cancel_future', { method:'POST', headers: headers(), body: JSON.stringify(body) });
+      const js = await res.json();
+      if (!res.ok){ alert(js && js.error ? js.error : 'Failed to cancel'); return; }
+      alert('Canceled '+(js.counts && js.counts.processed ? js.counts.processed : 0)+' session(s).');
+      $('#cfp-sched-modal').hide();
+      loadMonth(window.__cfpCurrent||new Date());
+    }catch(e){ alert('Failed'); }
+  });
   }
-  $(async function(){ await loadFilters(); window.__cfpCurrent=new Date(); wire(); await loadMonth(window.__cfpCurrent); });
+  $(async function(){ 
+    try {
+      await loadFilters(); 
+      window.__cfpCurrent=new Date(); 
+      wire(); 
+      await loadMonth(window.__cfpCurrent); 
+    } catch(e) {
+      console.error('ClassFlow Pro initialization error:', e);
+      $('.cfp-cal-grid').html('<div style="color:red;padding:20px;">Error loading calendar. Check console for details.</div>');
+    }
+  });
 })(jQuery);

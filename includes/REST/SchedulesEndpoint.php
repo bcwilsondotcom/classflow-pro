@@ -61,6 +61,13 @@ class SchedulesEndpoint
             'callback' => [$this, 'preview_cancel'],
             'permission_callback' => [$this, 'check_permissions'],
         ]);
+
+        // Bulk-cancel upcoming schedules for a class (uses class id and date threshold)
+        register_rest_route('classflow-pro/v1', '/classes/(?P<class_id>\d+)/cancel_future', [
+            'methods' => 'POST',
+            'callback' => [$this, 'cancel_future_for_class'],
+            'permission_callback' => [$this, 'check_permissions'],
+        ]);
     }
 
     public function check_permissions(): bool
@@ -269,6 +276,66 @@ class SchedulesEndpoint
         $wpdb->delete($w, ['schedule_id' => $id], ['%d']);
 
         return new \WP_REST_Response(['success' => true, 'processed' => $processed], 200);
+    }
+
+    public function cancel_future_for_class($request): \WP_REST_Response
+    {
+        $class_id = (int)$request->get_param('class_id');
+        $data = $request->get_json_params();
+        $notify = !empty($data['notify']);
+        $note = isset($data['note']) ? sanitize_textarea_field($data['note']) : '';
+        $action = isset($data['action']) ? sanitize_text_field($data['action']) : 'auto'; // auto|refund|credit|cancel
+        $from = isset($data['date_from']) ? sanitize_text_field($data['date_from']) : gmdate('Y-m-d H:i:s');
+        $to = isset($data['date_to']) ? sanitize_text_field($data['date_to']) : null;
+        $only_location_id = isset($data['location_id']) ? (int)$data['location_id'] : null;
+        $only_weekday = isset($data['only_weekday']) ? (int)$data['only_weekday'] : null; // 0=Sun..6
+        $only_time_hm = isset($data['only_time_hm']) ? preg_replace('/[^0-9:]/','', (string)$data['only_time_hm']) : null; // HH:MM
+        global $wpdb; $s=$wpdb->prefix.'cfp_schedules';
+        // Base select
+        $where = [ 'class_id = %d', "COALESCE(status,'active') <> 'cancelled'", 'start_time >= %s' ];
+        $params = [ $class_id, $from ];
+        if ($to) { $where[] = 'start_time <= %s'; $params[] = $to; }
+        if ($only_location_id) { $where[] = 'location_id = %d'; $params[] = $only_location_id; }
+        $sql = "SELECT id, start_time, location_id FROM $s WHERE ".implode(' AND ', $where)." ORDER BY start_time ASC";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A) ?: [];
+        // Optionally filter by weekday/time in location's timezone
+        if ($only_weekday !== null || $only_time_hm !== null) {
+            $filtered = [];
+            foreach ($rows as $r) {
+                $tz = \ClassFlowPro\Utils\Timezone::for_location(!empty($r['location_id']) ? (int)$r['location_id'] : null);
+                try {
+                    $dt = new \DateTime($r['start_time'].' UTC');
+                    $dt->setTimezone(new \DateTimeZone($tz));
+                    $weekday = (int)$dt->format('w'); // 0=Sun..6
+                    $hm = $dt->format('H:i');
+                    if ($only_weekday !== null && $weekday !== (int)$only_weekday) continue;
+                    if ($only_time_hm !== null && $hm !== $only_time_hm) continue;
+                    $filtered[] = $r;
+                } catch (\Throwable $e) { /* skip invalid */ }
+            }
+            $rows = $filtered;
+        }
+        $counts = ['total' => count($rows), 'processed' => 0, 'errors' => 0];
+        foreach ($rows as $r) {
+            $id = (int)$r['id'];
+            // Mark schedule as cancelled
+            $wpdb->update($s, [ 'status' => 'cancelled', 'cancel_note' => $note, 'cancelled_at' => gmdate('Y-m-d H:i:s') ], ['id' => $id], ['%s','%s','%s'], ['%d']);
+            // Process attendees
+            $b = $wpdb->prefix . 'cfp_bookings';
+            $w = $wpdb->prefix . 'cfp_waitlist';
+            $bookings = $wpdb->get_col($wpdb->prepare("SELECT id FROM $b WHERE schedule_id = %d AND status IN ('pending','confirmed')", $id));
+            if ($bookings) {
+                foreach ($bookings as $bid) {
+                    $opts = ['notify' => $notify, 'action' => $action, 'note' => $note];
+                    $res = \ClassFlowPro\Booking\Manager::admin_cancel_booking((int)$bid, $opts);
+                    if (is_wp_error($res)) { $counts['errors']++; }
+                }
+            }
+            // Clear waitlist
+            $wpdb->delete($w, ['schedule_id' => $id], ['%d']);
+            $counts['processed']++;
+        }
+        return new \WP_REST_Response(['success' => true, 'counts' => $counts], 200);
     }
 
     private function check_instructor_conflict($instructor_id, $start_time, $end_time, $exclude_id = null): bool
