@@ -578,12 +578,33 @@ class Routes
         $default_cancel = add_query_arg(['cfp_checkout' => 'cancel', 'booking_id' => $booking_id], home_url('/'));
         $conf_success = \ClassFlowPro\Admin\Settings::get('checkout_success_url', '');
         $conf_cancel = \ClassFlowPro\Admin\Settings::get('checkout_cancel_url', '');
-        $success_url = $conf_success ?: $default_success;
-        $cancel_url = $conf_cancel ?: $default_cancel;
+
+        // Ensure success/cancel URLs are absolute and valid for Stripe Checkout
+        $make_absolute = function($url, $fallback) {
+            $url = trim((string)$url);
+            if (!$url) return $fallback;
+            // If it's already a valid absolute URL, keep it
+            if (function_exists('wp_http_validate_url') && wp_http_validate_url($url)) {
+                return $url;
+            }
+            // Support site-relative paths like /thank-you
+            if (str_starts_with($url, '/')) {
+                $abs = home_url($url);
+                if (!function_exists('wp_http_validate_url') || wp_http_validate_url($abs)) return $abs;
+            }
+            // Fallback if still invalid
+            return $fallback;
+        };
+
+        $success_url = $make_absolute($conf_success, $default_success);
+        $cancel_url = $make_absolute($conf_cancel, $default_cancel);
+
+        // Always use USD for Stripe Checkout Session
+        $currency = 'usd';
 
         $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session([
             'amount_cents' => $amount_cents,
-            'currency' => $row['currency'],
+            'currency' => $currency,
             'class_title' => $class_title,
             'description' => $desc,
             'success_url' => $success_url,

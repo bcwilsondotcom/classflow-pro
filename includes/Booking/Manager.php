@@ -42,7 +42,8 @@ class Manager
         $user_id = $customer['user_id'] ?? null;
         $email = $customer['email'] ?? '';
         $amount_cents = (int)$schedule['price_cents'];
-        $currency = $schedule['currency'] ?: Settings::get('currency', 'usd');
+        // Always use USD for currency
+        $currency = 'usd';
         if ($amount_cents <= 0) {
             // Fallback to class price if schedule has no explicit price
             try {
@@ -50,7 +51,6 @@ class Manager
                 $row = $wpdb->get_row($wpdb->prepare("SELECT price_cents, currency FROM $cls WHERE id = %d", (int)$schedule['class_id']), ARRAY_A);
                 if ($row) {
                     $amount_cents = max(0, (int)$row['price_cents']);
-                    if (!empty($row['currency'])) $currency = $row['currency'];
                 }
             } catch (\Throwable $e) {}
         }
@@ -134,9 +134,11 @@ class Manager
         $class_id = (int)$schedule['class_id'];
         $instructor_id = (int)$schedule['instructor_id'];
 
+        // Always use USD for payment intent currency
+        $cur = 'usd';
         $intent = StripeGateway::create_intent([
             'amount_cents' => (int)$booking['amount_cents'],
-            'currency' => $booking['currency'],
+            'currency' => $cur,
             'description' => \ClassFlowPro\Utils\Entities::class_name($class_id) . ' — ' . gmdate('Y-m-d H:i', strtotime($schedule['start_time'])) . ' UTC',
             'receipt_email' => $email,
             'customer_name' => $name,

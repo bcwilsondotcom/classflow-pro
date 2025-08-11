@@ -77,7 +77,8 @@ class StripeGateway
             'amount' => $amount_cents,
             'currency' => $currency,
             'description' => $description,
-            'automatic_payment_methods[enabled]' => 'true',
+            // Ensure broad compatibility with older Stripe API versions
+            'payment_method_types[]' => 'card',
             'metadata' => $metadata,
         ];
         if (Settings::get('stripe_enable_tax', 1)) {
@@ -161,7 +162,6 @@ class StripeGateway
                     ],
                 ],
             ],
-            'automatic_payment_methods[enabled]' => 'true',
             'metadata[booking_id]' => (string)$booking_id,
         ];
         if (Settings::get('stripe_enable_tax', 1)) {

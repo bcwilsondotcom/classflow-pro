@@ -75,6 +75,7 @@ class Plugin
             'intakePageUrl' => esc_url_raw(Admin\Settings::get('intake_page_url', '')),
             'isLoggedIn' => is_user_logged_in(),
             'requireLoginToBook' => (bool) Admin\Settings::get('require_login_to_book', 0),
+            'userCredits' => is_user_logged_in() ? \ClassFlowPro\Packages\Manager::get_user_credits(get_current_user_id()) : 0,
         ];
         wp_localize_script('cfp-booking', 'CFP_DATA', $settings);
         // Share same data to other frontend scripts if enqueued

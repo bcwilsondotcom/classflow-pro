@@ -43,7 +43,8 @@ class Manager
 
     public static function create_purchase_intent(?int $user_id, string $name, int $credits, int $price_cents, string $email, string $buyer_name)
     {
-        $currency = \ClassFlowPro\Admin\Settings::get('currency', 'usd');
+        // Always use USD
+        $currency = 'usd';
         $intent = \ClassFlowPro\Payments\StripeGateway::create_intent([
             'amount_cents' => $price_cents,
             'currency' => $currency,
@@ -82,11 +83,24 @@ class Manager
 
     public static function create_checkout_session(?int $user_id, string $name, int $credits, int $price_cents, string $email, string $buyer_name)
     {
-        $currency = \ClassFlowPro\Admin\Settings::get('currency', 'usd');
+        // Always use USD
+        $currency = 'usd';
         $success = \ClassFlowPro\Admin\Settings::get('checkout_success_url', '');
         $cancel = \ClassFlowPro\Admin\Settings::get('checkout_cancel_url', '');
-        if (!$success) { $success = add_query_arg(['cfp_checkout' => 'success', 'package' => 1], home_url('/')); }
-        if (!$cancel) { $cancel = add_query_arg(['cfp_checkout' => 'cancel', 'package' => 1], home_url('/')); }
+        $default_success = add_query_arg(['cfp_checkout' => 'success', 'package' => 1], home_url('/'));
+        $default_cancel = add_query_arg(['cfp_checkout' => 'cancel', 'package' => 1], home_url('/'));
+        $make_absolute = function($url, $fallback) {
+            $url = trim((string)$url);
+            if (!$url) return $fallback;
+            if (function_exists('wp_http_validate_url') && wp_http_validate_url($url)) return $url;
+            if (str_starts_with($url, '/')) {
+                $abs = home_url($url);
+                if (!function_exists('wp_http_validate_url') || wp_http_validate_url($abs)) return $abs;
+            }
+            return $fallback;
+        };
+        $success = $make_absolute($success, $default_success);
+        $cancel = $make_absolute($cancel, $default_cancel);
         $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session([
             'amount_cents' => $price_cents,
             'currency' => $currency,

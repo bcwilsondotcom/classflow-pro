@@ -136,7 +136,8 @@
 
 .cfp-booking-form input[type="text"],
 .cfp-booking-form input[type="email"],
-.cfp-booking-form input[type="tel"] {
+.cfp-booking-form input[type="tel"],
+.cfp-booking-form input[type="password"] {
   width: 100%;
   padding: 8px 12px;
   margin-top: 4px;
@@ -144,6 +145,32 @@
   border-radius: 6px;
   font-size: 14px;
   transition: all 0.2s;
+}
+
+.cfp-booking-form input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+}
+
+.cfp-booking-form .cfp-book {
+  width: 100%;
+  padding: 12px 20px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+
+.cfp-booking-form .cfp-book:hover {
+  background: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
 .cfp-checkbox-label {
@@ -485,6 +512,29 @@
 
 .cfp-book:active, .cfp-pay:active {
   transform: translateY(0);
+}
+
+/* Login/Auth notices */
+.cfp-login-notice {
+  background: #f3f4f6;
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid #e5e7eb;
+}
+
+.cfp-user-welcome {
+  background: #eff6ff;
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  color: #1e40af;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid #bfdbfe;
 }
 
 /* Payment Section */
