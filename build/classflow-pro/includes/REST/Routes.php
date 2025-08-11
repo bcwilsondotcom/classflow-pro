@@ -12,6 +12,10 @@ class Routes
 {
     public static function register(): void
     {
+        // Register admin schedules endpoint
+        $schedules_endpoint = new SchedulesEndpoint();
+        $schedules_endpoint->register_routes();
+        
         // Entities listings (first-class tables)
         register_rest_route('classflow/v1', '/entities/classes', [
             'methods' => 'GET',
@@ -30,6 +34,13 @@ class Routes
         register_rest_route('classflow/v1', '/entities/resources', [
             'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_resources'],
             'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
+        ]);
+
+        // Single class detail (for admin scheduling UI)
+        register_rest_route('classflow/v1', '/classes/(?P<id>\d+)', [
+            'methods' => 'GET',
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+            'callback' => [self::class, 'get_class_detail'],
         ]);
 
         register_rest_route('classflow/v1', '/schedules', [
@@ -54,6 +65,24 @@ class Routes
                 'date_from' => ['type' => 'string', 'required' => false],
                 'date_to' => ['type' => 'string', 'required' => false],
             ],
+        ]);
+
+        // iCal feeds
+        register_rest_route('classflow/v1', '/ical/schedules', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'ical_schedules'],
+            'permission_callback' => '__return_true',
+        ]);
+        register_rest_route('classflow/v1', '/ical/me_url', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'ical_me_url'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/ical/my', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'ical_my_feed'],
+            'permission_callback' => '__return_true',
+            'args' => [ 'token' => ['type' => 'string', 'required' => true] ],
         ]);
 
         register_rest_route('classflow/v1', '/book', [
@@ -283,6 +312,16 @@ class Routes
         $sql = $wpdb->prepare("SELECT id, name FROM $t $where ORDER BY name ASC LIMIT %d OFFSET %d", ...array_merge($params, [$per,$off]));
         $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
         return rest_ensure_response(array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name']], $rows));
+    }
+
+    public static function get_class_detail(WP_REST_Request $req)
+    {
+        $id = (int)$req['id'];
+        global $wpdb; $t=$wpdb->prefix.'cfp_classes';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT id, name, duration_mins, capacity, price_cents, currency, default_location_id FROM $t WHERE id = %d", $id), ARRAY_A);
+        if (!$row) return new WP_Error('cfp_not_found', __('Class not found', 'classflow-pro'), ['status' => 404]);
+        $row['id']=(int)$row['id']; $row['duration_mins']=(int)$row['duration_mins']; $row['capacity']=(int)$row['capacity']; $row['price_cents']=(int)$row['price_cents']; $row['default_location_id'] = $row['default_location_id'] ? (int)$row['default_location_id'] : null;
+        return rest_ensure_response($row);
     }
 
     public static function book(WP_REST_Request $req)
@@ -683,20 +722,3 @@ class Routes
         exit;
     }
 }
-        // iCal feeds
-        register_rest_route('classflow/v1', '/ical/schedules', [
-            'methods' => 'GET',
-            'callback' => [self::class, 'ical_schedules'],
-            'permission_callback' => '__return_true',
-        ]);
-        register_rest_route('classflow/v1', '/ical/me_url', [
-            'methods' => 'GET',
-            'callback' => [self::class, 'ical_me_url'],
-            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
-        ]);
-        register_rest_route('classflow/v1', '/ical/my', [
-            'methods' => 'GET',
-            'callback' => [self::class, 'ical_my_feed'],
-            'permission_callback' => '__return_true',
-            'args' => [ 'token' => ['type' => 'string', 'required' => true] ],
-        ]);

@@ -21,10 +21,12 @@ class Settings
         add_submenu_page('classflow-pro', __('Instructors', 'classflow-pro'), __('Instructors', 'classflow-pro'), 'manage_options', 'classflow-pro-instructors', ['ClassFlowPro\\Admin\\Instructors', 'render']);
         add_submenu_page('classflow-pro', __('Locations', 'classflow-pro'), __('Locations', 'classflow-pro'), 'manage_options', 'classflow-pro-locations', ['ClassFlowPro\\Admin\\Locations', 'render']);
         add_submenu_page('classflow-pro', __('Resources', 'classflow-pro'), __('Resources', 'classflow-pro'), 'manage_options', 'classflow-pro-resources', ['ClassFlowPro\\Admin\\Resources', 'render']);
+        // New full-screen Schedules calendar
+        add_submenu_page('classflow-pro', __('Schedules', 'classflow-pro'), __('Schedules', 'classflow-pro'), 'manage_options', 'classflow-pro-schedules', ['ClassFlowPro\\Admin\\Schedules', 'render']);
         add_submenu_page('classflow-pro', __('Bookings', 'classflow-pro'), __('Bookings', 'classflow-pro'), 'manage_options', 'classflow-pro-bookings', ['ClassFlowPro\\Admin\\Bookings', 'render']);
         add_submenu_page('classflow-pro', __('Coupons', 'classflow-pro'), __('Coupons', 'classflow-pro'), 'manage_options', 'classflow-pro-coupons', ['ClassFlowPro\\Admin\\Coupons', 'render']);
         add_submenu_page('classflow-pro', __('QuickBooks Tools', 'classflow-pro'), __('QuickBooks Tools', 'classflow-pro'), 'manage_options', 'classflow-pro-qbtools', ['ClassFlowPro\\Admin\\QuickBooksTools', 'render']);
-        add_submenu_page('classflow-pro', __('Schedules', 'classflow-pro'), __('Schedules', 'classflow-pro'), 'manage_options', 'classflow-pro-schedules', ['ClassFlowPro\\Admin\\Schedules', 'render']);
+        // Schedules are now managed within Classes
         add_submenu_page('classflow-pro', __('Private Requests', 'classflow-pro'), __('Private Requests', 'classflow-pro'), 'manage_options', 'classflow-pro-privreq', ['ClassFlowPro\\Admin\\PrivateRequests', 'render']);
         add_submenu_page('classflow-pro', __('Settings', 'classflow-pro'), __('Settings', 'classflow-pro'), 'manage_options', 'classflow-pro-settings', [self::class, 'render_settings_page']);
         add_submenu_page('classflow-pro', __('Logs', 'classflow-pro'), __('Logs', 'classflow-pro'), 'manage_options', 'classflow-pro-logs', ['ClassFlowPro\\Admin\\Logs', 'render']);

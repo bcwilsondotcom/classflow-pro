@@ -84,7 +84,7 @@ class Classes
                                 <span class="trash"><a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=classflow-pro-classes&action=delete&id=' . $post_id), 'cfp_delete_class_' . $post_id)); ?>" onclick="return confirm('<?php echo esc_attr__('Are you sure?', 'classflow-pro'); ?>');"><?php esc_html_e('Delete', 'classflow-pro'); ?></a></span>
                             </div>
                         </td>
-                        <td><?php echo esc_html((string) (int) $row['duration_mins']); ?></td>
+                        <td><?php echo esc_html((string) (int) $row['duration_mins']) . ' ' . esc_html__('mins', 'classflow-pro'); ?></td>
                         <td><?php echo esc_html((string) (int) $row['capacity']); ?></td>
                         <td>
                             <?php $cents = (int) $row['price_cents']; $cur = $row['currency'] ?: \ClassFlowPro\Admin\Settings::get('currency','usd'); echo esc_html(number_format_i18n($cents/100, 2) . ' ' . strtoupper($cur)); ?>
@@ -93,7 +93,7 @@ class Classes
                             <?php $st = $row['status']; $label = $st === 'active' ? __('Active', 'classflow-pro') : ($st === 'inactive' ? __('Inactive', 'classflow-pro') : __('Draft', 'classflow-pro')); echo esc_html($label); ?>
                         </td>
                         <td>
-                            <a class="button button-small" href="<?php echo esc_url(admin_url('admin.php?page=classflow-pro-schedules&class_id=' . $post_id)); ?>"><?php esc_html_e('View Schedules', 'classflow-pro'); ?></a>
+                            <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=classflow-pro-schedules&class_id=' . $post_id)); ?>"><?php esc_html_e('Open Schedules', 'classflow-pro'); ?></a>
                         </td>
                     </tr>
                 <?php endforeach; endif; ?>
@@ -134,81 +134,119 @@ class Classes
 
         wp_enqueue_media();
 
-        $name = $row ? $row['name'] : '';
-        $description = $row ? $row['description'] : '';
-        $duration = $row ? (int) $row['duration_mins'] : 60;
-        $capacity = $row ? (int) $row['capacity'] : 8;
-        $price_cents = $row ? (int) $row['price_cents'] : 3000;
-        $currency = $row ? ($row['currency'] ?: \ClassFlowPro\Admin\Settings::get('currency','usd')) : \ClassFlowPro\Admin\Settings::get('currency','usd');
-        $thumb_id = $row && !empty($row['featured_image_id']) ? (int) $row['featured_image_id'] : 0;
-        $status = $row ? $row['status'] : 'active';
+        $name = $row['name'] ?? '';
+        $description = $row['description'] ?? '';
+        $duration = isset($row['duration_mins']) ? (int)$row['duration_mins'] : 60;
+        $capacity = isset($row['capacity']) ? (int)$row['capacity'] : 8;
+        $price_cents = isset($row['price_cents']) ? (int)$row['price_cents'] : 0;
+        $currency = $row['currency'] ?? \ClassFlowPro\Admin\Settings::get('currency','usd');
+        $status = $row['status'] ?? 'active';
+        $thumb_id = !empty($row['featured_image_id']) ? (int)$row['featured_image_id'] : 0;
+        $default_location_id = !empty($row['default_location_id']) ? (int)$row['default_location_id'] : 0;
+
+        global $wpdb;
+        $locations = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}cfp_locations ORDER BY name", ARRAY_A);
         ?>
         <div class="wrap">
             <h1><?php echo $id ? esc_html__('Edit Class', 'classflow-pro') : esc_html__('Add New Class', 'classflow-pro'); ?></h1>
-            <form method="post">
+            <form method="post" id="class-form">
                 <?php wp_nonce_field('cfp_save_class'); ?>
                 <input type="hidden" name="cfp_action" value="save_class" />
                 <?php if ($id): ?><input type="hidden" name="id" value="<?php echo esc_attr((string)$id); ?>" /><?php endif; ?>
 
-                <table class="form-table">
-                    <tr>
-                        <th><label for="cfp_name"><?php esc_html_e('Name', 'classflow-pro'); ?></label></th>
-                        <td><input type="text" class="regular-text" id="cfp_name" name="name" required value="<?php echo esc_attr($name); ?>" /></td>
-                    </tr>
-                    <tr>
-                        <th><label for="cfp_description"><?php esc_html_e('Description', 'classflow-pro'); ?></label></th>
-                        <td><?php wp_editor($description, 'cfp_description', ['textarea_rows' => 8, 'media_buttons' => true]); ?></td>
-                    </tr>
-                    <tr>
-                        <th><label for="cfp_duration"><?php esc_html_e('Duration (minutes)', 'classflow-pro'); ?></label></th>
-                        <td><input type="number" class="small-text" id="cfp_duration" name="duration" min="1" value="<?php echo esc_attr((string)$duration); ?>" /></td>
-                    </tr>
-                    <tr>
-                        <th><label for="cfp_capacity"><?php esc_html_e('Capacity', 'classflow-pro'); ?></label></th>
-                        <td><input type="number" class="small-text" id="cfp_capacity" name="capacity" min="1" value="<?php echo esc_attr((string)$capacity); ?>" /></td>
-                    </tr>
-                    <tr>
-                        <th><label for="cfp_price"><?php esc_html_e('Price', 'classflow-pro'); ?></label></th>
-                        <td>
-                            <input type="number" step="0.01" min="0" class="small-text" id="cfp_price" name="price" value="<?php echo esc_attr(number_format((float)($price_cents/100), 2, '.', '')); ?>" />
-                            <span class="description"><?php esc_html_e('Enter 0 for free classes', 'classflow-pro'); ?></span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><label for="cfp_currency"><?php esc_html_e('Currency', 'classflow-pro'); ?></label></th>
-                        <td><input type="text" class="small-text" id="cfp_currency" name="currency" value="<?php echo esc_attr($currency); ?>" /></td>
-                    </tr>
-                    <tr>
-                        <th><label for="cfp_status"><?php esc_html_e('Status', 'classflow-pro'); ?></label></th>
-                        <td>
-                            <select id="cfp_status" name="status">
-                                <option value="active" <?php selected($status, 'active'); ?>><?php esc_html_e('Active', 'classflow-pro'); ?></option>
-                                <option value="draft" <?php selected($status, 'draft'); ?>><?php esc_html_e('Draft', 'classflow-pro'); ?></option>
-                                <option value="inactive" <?php selected($status, 'inactive'); ?>><?php esc_html_e('Inactive', 'classflow-pro'); ?></option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><label><?php esc_html_e('Featured Image', 'classflow-pro'); ?></label></th>
-                        <td>
-                            <div id="cfp-featured-preview">
-                                <?php if ($thumb_id) echo wp_get_attachment_image($thumb_id, 'thumbnail'); ?>
+                <div id="poststuff">
+                    <div id="post-body" class="metabox-holder columns-2">
+                        <div id="post-body-content">
+                            <div class="postbox">
+                                <h2 class="hndle"><span><?php esc_html_e('Class Details', 'classflow-pro'); ?></span></h2>
+                                <div class="inside">
+                                    <table class="form-table">
+                                        <tr>
+                                            <th><label for="cfp_name"><?php esc_html_e('Name', 'classflow-pro'); ?></label></th>
+                                            <td><input type="text" class="regular-text" id="cfp_name" name="name" required value="<?php echo esc_attr($name); ?>" /></td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="cfp_description"><?php esc_html_e('Description', 'classflow-pro'); ?></label></th>
+                                            <td><textarea class="large-text" id="cfp_description" name="cfp_description" rows="6"><?php echo esc_textarea($description); ?></textarea></td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="cfp_duration"><?php esc_html_e('Duration (minutes)', 'classflow-pro'); ?></label></th>
+                                            <td><input type="number" min="1" step="1" class="small-text" id="cfp_duration" name="duration" value="<?php echo esc_attr((string)$duration); ?>" /></td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="cfp_capacity"><?php esc_html_e('Capacity', 'classflow-pro'); ?></label></th>
+                                            <td><input type="number" min="1" step="1" class="small-text" id="cfp_capacity" name="capacity" value="<?php echo esc_attr((string)$capacity); ?>" /></td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="cfp_price"><?php esc_html_e('Price', 'classflow-pro'); ?></label></th>
+                                            <td>
+                                                <input type="number" step="0.01" min="0" class="small-text" id="cfp_price" name="price" value="<?php echo esc_attr(number_format((float)($price_cents/100), 2, '.', '')); ?>" />
+                                                <select id="cfp_currency" name="currency">
+                                                    <?php foreach (['usd','eur','gbp','cad','aud'] as $cur): ?>
+                                                        <option value="<?php echo esc_attr($cur); ?>" <?php selected($currency, $cur); ?>><?php echo esc_html(strtoupper($cur)); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="default_location_id"><?php esc_html_e('Default Location', 'classflow-pro'); ?></label></th>
+                                            <td>
+                                                <select id="default_location_id" name="default_location_id">
+                                                    <option value="">— <?php esc_html_e('Select', 'classflow-pro'); ?> —</option>
+                                                    <?php foreach ($locations as $loc): ?>
+                                                        <option value="<?php echo esc_attr((string)$loc['id']); ?>" <?php selected($default_location_id, (int)$loc['id']); ?>><?php echo esc_html($loc['name']); ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="cfp_status"><?php esc_html_e('Status', 'classflow-pro'); ?></label></th>
+                                            <td>
+                                                <select id="cfp_status" name="status">
+                                                    <option value="active" <?php selected($status, 'active'); ?>><?php esc_html_e('Active', 'classflow-pro'); ?></option>
+                                                    <option value="draft" <?php selected($status, 'draft'); ?>><?php esc_html_e('Draft', 'classflow-pro'); ?></option>
+                                                    <option value="inactive" <?php selected($status, 'inactive'); ?>><?php esc_html_e('Inactive', 'classflow-pro'); ?></option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
                             </div>
-                            <input type="hidden" id="cfp_featured_id" name="featured_image_id" value="<?php echo esc_attr((string)$thumb_id); ?>" />
-                            <button type="button" class="button" id="cfp-upload-image"><?php esc_html_e('Select Image', 'classflow-pro'); ?></button>
-                            <button type="button" class="button" id="cfp-remove-image" <?php echo $thumb_id ? '' : 'style="display:none;"'; ?>><?php esc_html_e('Remove Image', 'classflow-pro'); ?></button>
-                        </td>
-                    </tr>
-                </table>
+                        </div>
 
-                <?php submit_button($id ? __('Update Class', 'classflow-pro') : __('Add Class', 'classflow-pro')); ?>
+                        <div id="postbox-container-1" class="postbox-container">
+                            <div class="postbox">
+                                <h2 class="hndle"><span><?php esc_html_e('Featured Image', 'classflow-pro'); ?></span></h2>
+                                <div class="inside">
+                                    <div id="cfp-featured-preview" style="margin-bottom: 10px;">
+                                        <?php if ($thumb_id) echo wp_get_attachment_image($thumb_id, 'thumbnail'); ?>
+                                    </div>
+                                    <input type="hidden" id="cfp_featured_id" name="featured_image_id" value="<?php echo esc_attr((string)$thumb_id); ?>" />
+                                    <button type="button" class="button" id="cfp-upload-image"><?php esc_html_e('Select Image', 'classflow-pro'); ?></button>
+                                    <button type="button" class="button" id="cfp-remove-image" <?php echo $thumb_id ? '' : 'style="display:none;"'; ?>><?php esc_html_e('Remove Image', 'classflow-pro'); ?></button>
+                                </div>
+                            </div>
+
+                            <div class="postbox">
+                                <h2 class="hndle"><span><?php esc_html_e('Publish', 'classflow-pro'); ?></span></h2>
+                                <div class="inside">
+                                    <div id="major-publishing-actions">
+                                        <?php submit_button($id ? __('Update Class', 'classflow-pro') : __('Add Class', 'classflow-pro'), 'primary large', 'submit', false); ?>
+                                        <div class="clear"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </form>
         </div>
+
         <script>
         jQuery(function($){
             $('#cfp-upload-image').on('click', function(e){
                 e.preventDefault();
-                var frame = wp.media({title: '<?php echo esc_js(__('Select Featured Image', 'classflow-pro')); ?>', button:{text:'<?php echo esc_js(__('Use this image', 'classflow-pro')); ?>'}, multiple:false});
+                var frame = wp.media({ title: '<?php echo esc_js(__('Select Featured Image', 'classflow-pro')); ?>', button: { text: '<?php echo esc_js(__('Use this image', 'classflow-pro')); ?>' }, multiple: false });
                 frame.on('select', function(){
                     var attachment = frame.state().get('selection').first().toJSON();
                     $('#cfp_featured_id').val(attachment.id);
@@ -217,12 +255,7 @@ class Classes
                 });
                 frame.open();
             });
-            $('#cfp-remove-image').on('click', function(e){
-                e.preventDefault();
-                $('#cfp_featured_id').val('');
-                $('#cfp-featured-preview').empty();
-                $(this).hide();
-            });
+            $('#cfp-remove-image').on('click', function(e){ e.preventDefault(); $('#cfp_featured_id').val(''); $('#cfp-featured-preview').empty(); $(this).hide(); });
         });
         </script>
         <?php
@@ -246,6 +279,7 @@ class Classes
         $currency = isset($_POST['currency']) ? sanitize_text_field($_POST['currency']) : \ClassFlowPro\Admin\Settings::get('currency','usd');
         $status = isset($_POST['status']) ? sanitize_key($_POST['status']) : 'active';
         $featured_id = isset($_POST['featured_image_id']) ? (int) $_POST['featured_image_id'] : 0;
+        $default_location_id = isset($_POST['default_location_id']) ? (int) $_POST['default_location_id'] : 0;
 
         $repo = new \ClassFlowPro\DB\Repositories\ClassesRepository();
         $was_existing = $id > 0;
@@ -259,6 +293,7 @@ class Classes
                 'currency' => $currency,
                 'status' => in_array($status, ['active','draft','inactive'], true) ? $status : 'active',
                 'featured_image_id' => $featured_id ?: null,
+                'default_location_id' => $default_location_id ?: null,
             ]);
         } else {
             $id = $repo->create([
@@ -270,10 +305,16 @@ class Classes
                 'currency' => $currency,
                 'status' => in_array($status, ['active','draft','inactive'], true) ? $status : 'active',
                 'featured_image_id' => $featured_id ?: null,
+                'default_location_id' => $default_location_id ?: null,
             ]);
         }
         $msg = $was_existing ? 'updated' : 'created';
-        $url = admin_url('admin.php?page=classflow-pro-classes&message=' . $msg);
+        // After creating a new class, go back to the list with a success banner.
+        if ($was_existing) {
+            $url = admin_url('admin.php?page=classflow-pro-classes&action=edit&id=' . $id . '&message=' . $msg);
+        } else {
+            $url = admin_url('admin.php?page=classflow-pro-classes&message=' . $msg);
+        }
         if (!headers_sent()) { wp_safe_redirect($url); exit; }
         echo '<script>window.location.href = ' . json_encode($url) . ';</script>';
         echo '<noscript><meta http-equiv="refresh" content="0;url=' . esc_url($url) . '"></noscript>';
