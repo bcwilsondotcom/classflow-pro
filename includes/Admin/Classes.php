@@ -309,7 +309,6 @@ class Classes
             ]);
         }
         $msg = $was_existing ? 'updated' : 'created';
-        // After creating a new class, go back to the list with a success banner.
         if ($was_existing) {
             $url = admin_url('admin.php?page=classflow-pro-classes&action=edit&id=' . $id . '&message=' . $msg);
         } else {
@@ -333,6 +332,19 @@ class Classes
         if (!current_user_can('delete_posts')) {
             wp_die(esc_html__('Permission denied.', 'classflow-pro'));
         }
+        // Cascade delete schedules: cancel bookings, delete waitlists, remove schedules
+        global $wpdb;
+        $s_tbl = $wpdb->prefix . 'cfp_schedules';
+        $b_tbl = $wpdb->prefix . 'cfp_bookings';
+        $w_tbl = $wpdb->prefix . 'cfp_waitlist';
+        $schedule_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM $s_tbl WHERE class_id = %d", $id));
+        if (!empty($schedule_ids)) {
+            foreach ($schedule_ids as $sid) {
+                $wpdb->update($b_tbl, ['status' => 'canceled'], ['schedule_id' => (int)$sid], ['%s'], ['%d']);
+                $wpdb->delete($w_tbl, ['schedule_id' => (int)$sid], ['%d']);
+                $wpdb->delete($s_tbl, ['id' => (int)$sid], ['%d']);
+            }
+        }
         $repo = new \ClassFlowPro\DB\Repositories\ClassesRepository();
         $repo->delete($id);
         $url = admin_url('admin.php?page=classflow-pro-classes&message=deleted');
@@ -355,3 +367,4 @@ class Classes
         }
     }
 }
+

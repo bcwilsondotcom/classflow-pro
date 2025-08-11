@@ -9,7 +9,8 @@ class Schedules
 
         // Full-screen calendar view with side scheduler panel
         wp_enqueue_style('cfp-frontend');
-        wp_enqueue_script('cfp-admin-schedules', CFP_PLUGIN_URL . 'assets/js/admin-schedules.js', ['jquery'], '1.0.0', true);
+        $ver = @filemtime(CFP_PLUGIN_DIR . 'assets/js/admin-schedules.js') ?: '1.0.0';
+        wp_enqueue_script('cfp-admin-schedules', CFP_PLUGIN_URL . 'assets/js/admin-schedules.js', ['jquery'], $ver, true);
         wp_localize_script('cfp-admin-schedules', 'CFP_ADMIN', [
             'restUrl' => esc_url_raw(rest_url('classflow/v1/')),
             'adminRestUrl' => esc_url_raw(rest_url('classflow-pro/v1/')),
@@ -33,7 +34,9 @@ class Schedules
         echo '<select class="cfp-filter-location"><option value="">' . esc_html__('All Locations', 'classflow-pro') . '</option></select>';
         echo '</div>';
         echo '</div>';
-        echo '<div class="cfp-cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;"></div>';
+        echo '<div class="cfp-cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-height:480px;align-content:start;">'
+            . '<div class="cfp-cal-placeholder" style="grid-column:1 / -1;color:#64748b;">' . esc_html__('Loading calendar…', 'classflow-pro') . '</div>'
+            . '</div>';
         echo '</div>';
 
         // Side panel

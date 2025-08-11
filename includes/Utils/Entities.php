@@ -13,8 +13,8 @@ class Entities
             $name = $wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}cfp_classes WHERE id = %d", $id));
             if ($name) return (string) $name;
         } catch (\Throwable $e) {}
-        $title = get_the_title($id);
-        return is_string($title) ? $title : '';
+        // Do not fall back to WP posts; classes are stored in the cfp_classes table only.
+        return '';
     }
 
     public static function instructor_name(?int $id): string
@@ -41,4 +41,3 @@ class Entities
         return is_string($title) ? $title : '';
     }
 }
-
