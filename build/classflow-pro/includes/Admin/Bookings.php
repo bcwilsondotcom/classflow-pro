@@ -40,7 +40,7 @@ class Bookings
         echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Class</th><th>Status</th><th>Amount</th><th>Email</th><th>Created</th></tr></thead><tbody>';
         foreach ($recent as $r) {
             $amount = number_format_i18n(((int)$r['amount_cents'])/100, 2) . ' ' . strtoupper($r['currency']);
-            $title = $r['class_id'] ? get_the_title((int)$r['class_id']) : '-';
+            $title = $r['class_id'] ? \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']) : '-';
             echo '<tr>'
                 . '<td>#' . intval($r['id']) . '</td>'
                 . '<td>' . esc_html($title) . '</td>'
@@ -63,11 +63,10 @@ class Bookings
         $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM $s WHERE start_time >= %s ORDER BY start_time ASC LIMIT 500", gmdate('Y-m-d H:i:s')), ARRAY_A);
         $out = '';
         foreach ($rows as $r) {
-            $label = get_the_title((int)$r['class_id']) . ' — ' . gmdate('Y-m-d H:i', strtotime($r['start_time'])) . ' UTC';
+            $label = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']) . ' — ' . gmdate('Y-m-d H:i', strtotime($r['start_time'])) . ' UTC';
             if (!empty($r['location_id'])) { $label .= ' — ' . get_the_title((int)$r['location_id']); }
             $out .= '<option value="' . intval($r['id']) . '">' . esc_html($label) . '</option>';
         }
         return $out;
     }
 }
-

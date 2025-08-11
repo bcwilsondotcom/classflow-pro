@@ -55,7 +55,7 @@ class Reports
         foreach ($occ_rows as $r) {
             $fill = (int)$r['capacity'] > 0 ? round(100 * (int)$r['booked'] / (int)$r['capacity']) : 0;
             echo '<tr>'
-                . '<td>#' . intval($r['id']) . ' — ' . esc_html(get_the_title((int)$r['class_id'])) . '</td>'
+                . '<td>#' . intval($r['id']) . ' — ' . esc_html(\ClassFlowPro\Utils\Entities::class_name((int)$r['class_id'])) . '</td>'
                 . '<td>' . esc_html($r['start_time']) . '</td>'
                 . '<td>' . intval($r['capacity']) . '</td>'
                 . '<td>' . intval($r['booked']) . '</td>'
@@ -101,4 +101,3 @@ class Reports
         exit;
     }
 }
-

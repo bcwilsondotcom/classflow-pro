@@ -45,6 +45,12 @@ class Webhooks
         }
 
         switch ($event['type']) {
+            case 'checkout.session.completed':
+                self::on_checkout_completed($event['data']['object'] ?? []);
+                break;
+            case 'checkout.session.async_payment_succeeded':
+                self::on_checkout_completed($event['data']['object'] ?? []);
+                break;
             case 'payment_intent.succeeded':
                 self::on_payment_succeeded($event['data']['object'] ?? []);
                 break;
@@ -62,8 +68,12 @@ class Webhooks
         $intent_id = $intent['id'] ?? '';
         if (!$intent_id) return;
         $bookings = $wpdb->prefix . 'cfp_bookings';
+        // Try match by intent id (previous PI flow) or by metadata booking_id (Checkout flow)
         $booking = $wpdb->get_row($wpdb->prepare("SELECT * FROM $bookings WHERE payment_intent_id = %s", $intent_id), ARRAY_A);
         $metadata = $intent['metadata'] ?? [];
+        if (!$booking && !empty($metadata['booking_id'])) {
+            $booking = $wpdb->get_row($wpdb->prepare("SELECT * FROM $bookings WHERE id = %d", (int)$metadata['booking_id']), ARRAY_A);
+        }
         $transactions = $wpdb->prefix . 'cfp_transactions';
         $fee_cents = isset($intent['application_fee_amount']) ? (int)$intent['application_fee_amount'] : 0;
         $tax_cents = isset($intent['amount_details']['amount_tax']) ? (int)$intent['amount_details']['amount_tax'] : 0;
@@ -121,7 +131,32 @@ class Webhooks
                 'tax_amount_cents' => $tax_cents,
                 'fee_amount_cents' => $fee_cents,
             ], ['processor_id' => $intent_id], ['%s','%d','%d'], ['%s']);
+        } elseif (!$booking && empty($metadata['type']) && !empty($intent['amount'])) {
+            // Checkout Session for packages may not carry our custom metadata if created directly; fallback: look up pending package tx by PI id
+            $tx = $wpdb->get_row($wpdb->prepare("SELECT * FROM $transactions WHERE processor='stripe' AND type='package_purchase' AND processor_id = %s", $intent_id), ARRAY_A);
+            if ($tx && $tx['status'] !== 'succeeded') {
+                $wpdb->update($transactions, [ 'status' => 'succeeded' ], ['id' => $tx['id']], ['%s'], ['%d']);
+                // Unable to infer credits without metadata — recommend using REST path that sets metadata. We log for operator to reconcile.
+                \ClassFlowPro\Logging\Logger::log('warning', 'stripe_webhook', 'Package purchase without metadata; manual grant may be required', ['processor_id' => $intent_id]);
+            }
         }
+    }
+
+    private static function on_checkout_completed(array $session): void
+    {
+        // For Checkout, we rely on the underlying PaymentIntent for final status and metadata
+        $intent_id = $session['payment_intent'] ?? '';
+        if (!$intent_id) return;
+        // Call existing intent handler by fetching PI from Stripe if needed; but metadata should be propagated
+        // For simplicity, we emulate a minimal PI object with metadata and ids when session carries total.
+        $fake_intent = [
+            'id' => $intent_id,
+            'metadata' => $session['metadata'] ?? [],
+            'amount' => $session['amount_total'] ?? null,
+            'currency' => $session['currency'] ?? null,
+            // charges/receipt not available here; subsequent payment_intent.succeeded will fill it.
+        ];
+        self::on_payment_succeeded($fake_intent);
     }
 
     private static function on_payment_failed(array $intent): void

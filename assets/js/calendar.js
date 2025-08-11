@@ -143,15 +143,15 @@
 
   async function populateFilters($root) {
     try {
-      const base = CFP_DATA.restUrl.replace('classflow/v1/','wp/v2/');
-      const classes = await (await fetch(base + 'cfp_class?per_page=100&_fields=id,title')).json();
-      const locs = await (await fetch(base + 'cfp_location?per_page=100&_fields=id,title')).json();
-      const instr = await (await fetch(base + 'cfp_instructor?per_page=100&_fields=id,title')).json();
+      const base = CFP_DATA.restUrl + 'entities/';
+      const classes = await (await fetch(base + 'classes?per_page=100')).json();
+      const locs = await (await fetch(base + 'locations?per_page=100')).json();
+      const instr = await (await fetch(base + 'instructors?per_page=100')).json();
       const $cls = $root.find('.cfp-filter-class'); const $loc = $root.find('.cfp-filter-location');
       const $inst = $root.find('.cfp-filter-instructor');
-      if (Array.isArray(classes)) classes.forEach(c => { $cls.append('<option value="'+c.id+'">'+(c.title?.rendered || ('#'+c.id))+'</option>'); });
-      if (Array.isArray(locs)) locs.forEach(l => { $loc.append('<option value="'+l.id+'">'+(l.title?.rendered || ('#'+l.id))+'</option>'); });
-      if (Array.isArray(instr)) instr.forEach(i => { $inst.append('<option value="'+i.id+'">'+(i.title?.rendered || ('#'+i.id))+'</option>'); });
+      if (Array.isArray(classes)) classes.forEach(c => { $cls.append('<option value="'+c.id+'">'+(c.name || ('#'+c.id))+'</option>'); });
+      if (Array.isArray(locs)) locs.forEach(l => { $loc.append('<option value="'+l.id+'">'+(l.name || ('#'+l.id))+'</option>'); });
+      if (Array.isArray(instr)) instr.forEach(i => { $inst.append('<option value="'+i.id+'">'+(i.name || ('#'+i.id))+'</option>'); });
       if ($root.data('class-id')) $cls.val(String($root.data('class-id')));
       if ($root.data('location-id')) $loc.val(String($root.data('location-id')));
     } catch(e) {}

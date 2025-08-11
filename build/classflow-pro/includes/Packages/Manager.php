@@ -79,4 +79,41 @@ class Manager
             'payment_intent_id' => $intent['id'],
         ];
     }
+
+    public static function create_checkout_session(?int $user_id, string $name, int $credits, int $price_cents, string $email, string $buyer_name)
+    {
+        $currency = \ClassFlowPro\Admin\Settings::get('currency', 'usd');
+        $success = \ClassFlowPro\Admin\Settings::get('checkout_success_url', '');
+        $cancel = \ClassFlowPro\Admin\Settings::get('checkout_cancel_url', '');
+        if (!$success) { $success = add_query_arg(['cfp_checkout' => 'success', 'package' => 1], home_url('/')); }
+        if (!$cancel) { $cancel = add_query_arg(['cfp_checkout' => 'cancel', 'package' => 1], home_url('/')); }
+        $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session([
+            'amount_cents' => $price_cents,
+            'currency' => $currency,
+            'class_title' => 'Package: ' . $name,
+            'description' => 'Package: ' . $name . ' (' . $credits . ' credits)',
+            'success_url' => $success,
+            'cancel_url' => $cancel,
+            'booking_id' => 0,
+            'instructor_id' => 0,
+        ]);
+        if (is_wp_error($session)) return $session;
+        global $wpdb;
+        $transactions = $wpdb->prefix . 'cfp_transactions';
+        $wpdb->insert($transactions, [
+            'user_id' => $user_id,
+            'booking_id' => null,
+            'amount_cents' => $price_cents,
+            'currency' => $currency,
+            'type' => 'package_purchase',
+            'processor' => 'stripe',
+            'processor_id' => $session['id'],
+            'status' => 'requires_payment',
+            'tax_amount_cents' => 0,
+            'fee_amount_cents' => 0,
+        ], ['%d','%s','%d','%s','%s','%s','%s','%d','%d']);
+        // Attach package metadata to PI via webhook path: we rely on payment_intent.succeeded branch with metadata type=package_purchase
+        // Since we cannot attach metadata to the Session-level directly for our DB, we process credits in webhook using user/email hints.
+        return [ 'id' => $session['id'], 'url' => $session['url'] ];
+    }
 }

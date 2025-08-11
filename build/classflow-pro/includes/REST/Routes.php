@@ -12,6 +12,26 @@ class Routes
 {
     public static function register(): void
     {
+        // Entities listings (first-class tables)
+        register_rest_route('classflow/v1', '/entities/classes', [
+            'methods' => 'GET',
+            'permission_callback' => '__return_true',
+            'callback' => [self::class, 'list_classes'],
+            'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
+        ]);
+        register_rest_route('classflow/v1', '/entities/locations', [
+            'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_locations'],
+            'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
+        ]);
+        register_rest_route('classflow/v1', '/entities/instructors', [
+            'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_instructors'],
+            'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
+        ]);
+        register_rest_route('classflow/v1', '/entities/resources', [
+            'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_resources'],
+            'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
+        ]);
+
         register_rest_route('classflow/v1', '/schedules', [
             'methods' => 'GET',
             'callback' => [self::class, 'get_schedules'],
@@ -60,6 +80,14 @@ class Routes
         register_rest_route('classflow/v1', '/payment_intent', [
             'methods' => 'POST',
             'callback' => [self::class, 'create_payment_intent'],
+            'permission_callback' => function () {
+                return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
+            },
+        ]);
+
+        register_rest_route('classflow/v1', '/stripe/checkout_session', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'create_checkout_session'],
             'permission_callback' => function () {
                 return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
             },
@@ -117,6 +145,21 @@ class Routes
             'callback' => [self::class, 'me_overview'],
             'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
         ]);
+        register_rest_route('classflow/v1', '/me/profile', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'get_my_profile'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/me/profile', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'update_my_profile'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/me/notes', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'get_my_notes'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
         register_rest_route('classflow/v1', '/me/intake', [
             'methods' => 'GET',
             'callback' => [self::class, 'get_my_intake'],
@@ -172,7 +215,9 @@ class Routes
         $prepared = $params ? $wpdb->prepare($sql, $params) : $sql;
         $rows = $wpdb->get_results($prepared, ARRAY_A);
         foreach ($rows as &$row) {
-            $row['location_name'] = $row['location_id'] ? get_the_title((int)$row['location_id']) : '';
+            $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+            $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
+            $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
         }
         return rest_ensure_response($rows);
@@ -197,12 +242,47 @@ class Routes
         $rows = $wpdb->get_results($sql, ARRAY_A);
         // Add titles
         foreach ($rows as &$row) {
-            $row['class_title'] = get_the_title((int)$row['class_id']);
-            $row['instructor_name'] = $row['instructor_id'] ? get_the_title((int)$row['instructor_id']) : '';
-            $row['location_name'] = $row['location_id'] ? get_the_title((int)$row['location_id']) : '';
+            $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+            $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
+            $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
         }
         return rest_ensure_response($rows);
+    }
+
+    // Entities list handlers
+    public static function list_classes(WP_REST_Request $req)
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_classes';
+        $s=trim((string)$req->get_param('s')); $per=max(1,min(200,(int)($req->get_param('per_page')?:100))); $page=max(1,(int)($req->get_param('page')?:1)); $off=($page-1)*$per;
+        $where=''; $params=[]; if($s!==''){ $where='WHERE name LIKE %s'; $params[]='%'.$wpdb->esc_like($s).'%'; }
+        $sql = $wpdb->prepare("SELECT id, name FROM $t $where ORDER BY name ASC LIMIT %d OFFSET %d", ...array_merge($params, [$per,$off]));
+        $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
+        return rest_ensure_response(array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name']], $rows));
+    }
+    public static function list_locations(WP_REST_Request $req)
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_locations'; $s=trim((string)$req->get_param('s')); $per=max(1,min(200,(int)($req->get_param('per_page')?:100))); $page=max(1,(int)($req->get_param('page')?:1)); $off=($page-1)*$per;
+        $where=''; $params=[]; if($s!==''){ $where='WHERE name LIKE %s'; $params[]='%'.$wpdb->esc_like($s).'%'; }
+        $sql = $wpdb->prepare("SELECT id, name FROM $t $where ORDER BY name ASC LIMIT %d OFFSET %d", ...array_merge($params, [$per,$off]));
+        $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
+        return rest_ensure_response(array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name']], $rows));
+    }
+    public static function list_instructors(WP_REST_Request $req)
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_instructors'; $s=trim((string)$req->get_param('s')); $per=max(1,min(200,(int)($req->get_param('per_page')?:100))); $page=max(1,(int)($req->get_param('page')?:1)); $off=($page-1)*$per;
+        $where=''; $params=[]; if($s!==''){ $where='WHERE name LIKE %s'; $params[]='%'.$wpdb->esc_like($s).'%'; }
+        $sql = $wpdb->prepare("SELECT id, name FROM $t $where ORDER BY name ASC LIMIT %d OFFSET %d", ...array_merge($params, [$per,$off]));
+        $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
+        return rest_ensure_response(array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name']], $rows));
+    }
+    public static function list_resources(WP_REST_Request $req)
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_resources'; $s=trim((string)$req->get_param('s')); $per=max(1,min(200,(int)($req->get_param('per_page')?:100))); $page=max(1,(int)($req->get_param('page')?:1)); $off=($page-1)*$per;
+        $where=''; $params=[]; if($s!==''){ $where='WHERE name LIKE %s'; $params[]='%'.$wpdb->esc_like($s).'%'; }
+        $sql = $wpdb->prepare("SELECT id, name FROM $t $where ORDER BY name ASC LIMIT %d OFFSET %d", ...array_merge($params, [$per,$off]));
+        $rows = $wpdb->get_results($sql, ARRAY_A) ?: [];
+        return rest_ensure_response(array_map(fn($r)=>['id'=>(int)$r['id'],'name'=>$r['name']], $rows));
     }
 
     public static function book(WP_REST_Request $req)
@@ -296,6 +376,44 @@ class Routes
         return rest_ensure_response($intent);
     }
 
+    public static function create_checkout_session(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $booking_id = (int)($data['booking_id'] ?? 0);
+        if (!$booking_id) return new WP_Error('cfp_invalid_request', __('Missing booking_id', 'classflow-pro'), ['status' => 400]);
+        global $wpdb;
+        $bookings = $wpdb->prefix . 'cfp_bookings';
+        $schedules = $wpdb->prefix . 'cfp_schedules';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT b.*, s.class_id, s.instructor_id, s.location_id, s.start_time FROM $bookings b JOIN $schedules s ON s.id = b.schedule_id WHERE b.id = %d", $booking_id), ARRAY_A);
+        if (!$row) return new WP_Error('cfp_not_found', __('Booking not found', 'classflow-pro'), ['status' => 404]);
+        $amount_cents = (int)$row['amount_cents'];
+        if ($amount_cents <= 0) return new WP_Error('cfp_free_booking', __('No payment required for this booking.', 'classflow-pro'), ['status' => 400]);
+
+        $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+        $desc = $class_title . ' — ' . gmdate('Y-m-d H:i', strtotime($row['start_time'])) . ' UTC';
+        $default_success = add_query_arg(['cfp_checkout' => 'success', 'booking_id' => $booking_id], home_url('/'));
+        $default_cancel = add_query_arg(['cfp_checkout' => 'cancel', 'booking_id' => $booking_id], home_url('/'));
+        $conf_success = \ClassFlowPro\Admin\Settings::get('checkout_success_url', '');
+        $conf_cancel = \ClassFlowPro\Admin\Settings::get('checkout_cancel_url', '');
+        $success_url = $conf_success ?: $default_success;
+        $cancel_url = $conf_cancel ?: $default_cancel;
+
+        $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session([
+            'amount_cents' => $amount_cents,
+            'currency' => $row['currency'],
+            'class_title' => $class_title,
+            'description' => $desc,
+            'success_url' => $success_url,
+            'cancel_url' => $cancel_url,
+            'booking_id' => $booking_id,
+            'instructor_id' => (int)$row['instructor_id'],
+        ]);
+        if (is_wp_error($session)) return $session;
+        // Attach session id to booking for reference
+        $wpdb->update($bookings, ['payment_intent_id' => $session['id']], ['id' => $booking_id], ['%s'], ['%d']);
+        return rest_ensure_response(['id' => $session['id'], 'url' => $session['url']]);
+    }
+
     public static function purchase_package(WP_REST_Request $req)
     {
         $data = $req->get_json_params();
@@ -305,9 +423,15 @@ class Routes
         $buyer_name = sanitize_text_field($data['buyer_name'] ?? '');
         $email = sanitize_email($data['email'] ?? '');
         $user_id = get_current_user_id();
-        $intent = \ClassFlowPro\Packages\Manager::create_purchase_intent($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
-        if (is_wp_error($intent)) return $intent;
-        return rest_ensure_response($intent);
+        if (\ClassFlowPro\Admin\Settings::get('stripe_use_checkout', 0)) {
+            $session = \ClassFlowPro\Packages\Manager::create_checkout_session($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
+            if (is_wp_error($session)) return $session;
+            return rest_ensure_response($session);
+        } else {
+            $intent = \ClassFlowPro\Packages\Manager::create_purchase_intent($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
+            if (is_wp_error($intent)) return $intent;
+            return rest_ensure_response($intent);
+        }
     }
 
     public static function me_overview(WP_REST_Request $req)
@@ -336,7 +460,7 @@ class Routes
         $out = [
             'id' => (int)$b['id'],
             'status' => $b['status'],
-            'class_title' => get_the_title((int)$b['class_id']),
+            'class_title' => \ClassFlowPro\Utils\Entities::class_name((int)$b['class_id']),
             'class_id' => (int)$b['class_id'],
             'schedule_id' => (int)$b['schedule_id'],
             'location_name' => !empty($b['location_id']) ? get_the_title((int)$b['location_id']) : '',
@@ -365,6 +489,42 @@ class Routes
         $rows = $wpdb->get_results($wpdb->prepare("SELECT id, name, credits, credits_remaining, price_cents, currency, expires_at, created_at FROM $pk WHERE user_id = %d ORDER BY created_at DESC LIMIT 100", $user_id), ARRAY_A);
         foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['credits']=(int)$r['credits']; $r['credits_remaining']=(int)$r['credits_remaining']; $r['price_cents']=(int)$r['price_cents']; }
         return $rows;
+    }
+
+    public static function get_my_profile(WP_REST_Request $req)
+    {
+        $u = wp_get_current_user();
+        $profile = [
+            'display_name' => $u->display_name,
+            'email' => $u->user_email,
+            'phone' => get_user_meta($u->ID, 'cfp_phone', true) ?: '',
+            'dob' => get_user_meta($u->ID, 'cfp_dob', true) ?: '',
+            'emergency_name' => get_user_meta($u->ID, 'cfp_emergency_name', true) ?: '',
+            'emergency_phone' => get_user_meta($u->ID, 'cfp_emergency_phone', true) ?: '',
+        ];
+        return rest_ensure_response($profile);
+    }
+
+    public static function update_my_profile(WP_REST_Request $req)
+    {
+        $u = wp_get_current_user();
+        $data = $req->get_json_params();
+        $fields = [
+            'cfp_phone' => sanitize_text_field($data['phone'] ?? ''),
+            'cfp_dob' => sanitize_text_field($data['dob'] ?? ''),
+            'cfp_emergency_name' => sanitize_text_field($data['emergency_name'] ?? ''),
+            'cfp_emergency_phone' => sanitize_text_field($data['emergency_phone'] ?? ''),
+        ];
+        foreach ($fields as $k => $v) { update_user_meta($u->ID, $k, $v); }
+        return rest_ensure_response(['ok' => true]);
+    }
+
+    public static function get_my_notes(WP_REST_Request $req)
+    {
+        $u = wp_get_current_user();
+        global $wpdb; $t=$wpdb->prefix.'cfp_customer_notes';
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT note, created_at FROM $t WHERE user_id = %d AND visible_to_user = 1 ORDER BY created_at DESC LIMIT 100", (int)$u->ID), ARRAY_A);
+        return rest_ensure_response($rows ?: []);
     }
 
     public static function get_my_intake(WP_REST_Request $req)
@@ -458,7 +618,7 @@ class Routes
         $rows = $wpdb->get_results($wpdb->prepare($sql, $params), ARRAY_A);
         $events = [];
         foreach ($rows as $r) {
-            $class_title = get_the_title((int)$r['class_id']);
+            $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']);
             $loc = !empty($r['location_id']) ? get_the_title((int)$r['location_id']) : '';
             $summary = $class_title;
             $desc = $loc ? ('Location: ' . $loc) : '';
@@ -505,7 +665,7 @@ class Routes
         $rows = $wpdb->get_results($wpdb->prepare("SELECT b.*, s.class_id, s.location_id, s.start_time, s.end_time FROM $bk b JOIN $sc s ON s.id=b.schedule_id WHERE b.user_id = %d AND b.status IN ('pending','confirmed') ORDER BY s.start_time ASC LIMIT 1000", $user_id), ARRAY_A);
         $events = [];
         foreach ($rows as $r) {
-            $class_title = get_the_title((int)$r['class_id']);
+            $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']);
             $loc = !empty($r['location_id']) ? get_the_title((int)$r['location_id']) : '';
             $events[] = [
                 'uid' => 'cfp-booking-' . $r['id'] . '@' . parse_url(home_url(), PHP_URL_HOST),

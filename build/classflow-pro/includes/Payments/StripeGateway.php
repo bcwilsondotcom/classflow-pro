@@ -132,4 +132,70 @@ class StripeGateway
         if (is_wp_error($res)) return $res;
         return $res;
     }
+
+    public static function create_checkout_session(array $args)
+    {
+        $amount_cents = (int)$args['amount_cents'];
+        $currency = $args['currency'];
+        $class_title = $args['class_title'] ?? 'Class';
+        $description = $args['description'] ?? '';
+        $success_url = $args['success_url'];
+        $cancel_url = $args['cancel_url'];
+        $booking_id = (int)($args['booking_id'] ?? 0);
+        $instructor_id = (int)($args['instructor_id'] ?? 0);
+
+        $params = [
+            'mode' => 'payment',
+            'success_url' => $success_url,
+            'cancel_url' => $cancel_url,
+            'line_items' => [
+                [
+                    'quantity' => 1,
+                    'price_data' => [
+                        'currency' => $currency,
+                        'unit_amount' => $amount_cents,
+                        'product_data' => [
+                            'name' => $class_title,
+                            'description' => $description,
+                        ],
+                    ],
+                ],
+            ],
+            'automatic_payment_methods[enabled]' => 'true',
+            'metadata[booking_id]' => (string)$booking_id,
+        ];
+        if (Settings::get('stripe_enable_tax', 1)) {
+            $params['automatic_tax[enabled]'] = 'true';
+        }
+        if (Settings::get('stripe_allow_promo_codes', 0)) {
+            $params['allow_promotion_codes'] = 'true';
+        }
+
+        // Stripe Connect split handled via payment_intent_data
+        if (Settings::get('stripe_connect_enabled', 0) && $instructor_id) {
+            $acct = get_post_meta($instructor_id, '_cfp_stripe_account_id', true);
+            if ($acct) {
+                $payout_percent = get_post_meta($instructor_id, '_cfp_payout_percent', true);
+                $payout_percent = is_numeric($payout_percent) ? (float)$payout_percent : null;
+                if ($payout_percent === null) {
+                    $platform_fee_percent = (float)Settings::get('platform_fee_percent', 0);
+                    $payout_percent = max(0.0, min(100.0, 100.0 - $platform_fee_percent));
+                } else {
+                    $payout_percent = max(0.0, min(100.0, $payout_percent));
+                }
+                $instructor_amount = (int)round($amount_cents * ($payout_percent / 100.0));
+                $application_fee_amount = max(0, $amount_cents - $instructor_amount);
+                $params['payment_intent_data[transfer_data][destination]'] = $acct;
+                $params['payment_intent_data[application_fee_amount]'] = $application_fee_amount;
+                $params['payment_intent_data[metadata][booking_id]'] = (string)$booking_id;
+            }
+        } else {
+            // Still attach booking_id to payment intent metadata via session param
+            $params['payment_intent_data[metadata][booking_id]'] = (string)$booking_id;
+        }
+
+        $session = self::api_request('POST', '/checkout/sessions', $params);
+        if (is_wp_error($session)) return $session;
+        return [ 'id' => $session['id'], 'url' => $session['url'] ];
+    }
 }

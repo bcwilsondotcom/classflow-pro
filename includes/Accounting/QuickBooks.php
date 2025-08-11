@@ -177,7 +177,7 @@ class QuickBooks
         if (!$schedule) return;
 
         $email = $booking['customer_email'];
-        $title = get_the_title((int)$schedule['class_id']);
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$schedule['class_id']);
         $desc = $title . ' — ' . gmdate('Y-m-d H:i', strtotime($schedule['start_time'])) . ' UTC';
         $amount = round(((int)$booking['amount_cents']) / 100, 2);
 
@@ -240,7 +240,7 @@ class QuickBooks
     public static function ensure_item_for_class(int $class_id): ?string
     {
         $prefix = \ClassFlowPro\Admin\Settings::get('qb_item_prefix', 'Class - ');
-        $name = $prefix . get_the_title($class_id);
+        $name = $prefix . \ClassFlowPro\Utils\Entities::class_name($class_id);
         return self::ensure_item($name);
     }
 

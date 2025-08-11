@@ -83,7 +83,7 @@ class Google
         $s = $wpdb->prefix . 'cfp_schedules';
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $s WHERE id = %d", $schedule_id), ARRAY_A);
         if (!$row) return;
-        $title = get_the_title((int)$row['class_id']);
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
         $location = !empty($row['location_id']) ? get_the_title((int)$row['location_id']) : '';
         $event = [
             'summary' => $title,
@@ -111,4 +111,3 @@ class Google
         }
     }
 }
-

@@ -64,7 +64,7 @@ class Mailer
         if (!$b) return;
         $s = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $b['schedule_id']), ARRAY_A);
         if (!$s) return;
-        $title = get_the_title((int)$s['class_id']);
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$s['class_id']);
         $tz = \ClassFlowPro\Utils\Timezone::for_location(!empty($s['location_id']) ? (int)$s['location_id'] : null);
         $start = \ClassFlowPro\Utils\Timezone::format_local($s['start_time'], $tz);
         $site = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
@@ -101,7 +101,7 @@ class Mailer
         if (!$b) return;
         $s = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $b['schedule_id']), ARRAY_A);
         if (!$s) return;
-        $title = get_the_title((int)$s['class_id']);
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$s['class_id']);
         $tz = \ClassFlowPro\Utils\Timezone::for_location(!empty($s['location_id']) ? (int)$s['location_id'] : null);
         $start = \ClassFlowPro\Utils\Timezone::format_local($s['start_time'], $tz);
         $site = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
@@ -135,7 +135,7 @@ class Mailer
         $new = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $b['schedule_id']), ARRAY_A);
         $old = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $old_schedule_id), ARRAY_A);
         if (!$new) return;
-        $title = get_the_title((int)$new['class_id']);
+        $title = \ClassFlowPro\Utils\Entities::class_name((int)$new['class_id']);
         $tz_new = \ClassFlowPro\Utils\Timezone::for_location(!empty($new['location_id']) ? (int)$new['location_id'] : null);
         $start_old = $old ? (\ClassFlowPro\Utils\Timezone::format_local($old['start_time'], \ClassFlowPro\Utils\Timezone::for_location(!empty($old['location_id']) ? (int)$old['location_id'] : null))) : '';
         $start_new = \ClassFlowPro\Utils\Timezone::format_local($new['start_time'], $tz_new);
@@ -166,7 +166,7 @@ class Mailer
         $stable = $wpdb->prefix . 'cfp_schedules';
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $schedule_id), ARRAY_A);
         if (!$row) return;
-        $class_title = get_the_title((int)$row['class_id']);
+        $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
         $start = gmdate('Y-m-d H:i', strtotime($row['start_time'])) . ' UTC';
         [$subject, $body] = self::get_template('confirmed', 'confirmed', [
             'class_title' => $class_title,

@@ -8,6 +8,8 @@ class Shortcodes
         add_shortcode('cfp_calendar_booking', [self::class, 'calendar_booking']);
         add_shortcode('cfp_step_booking', [self::class, 'step_booking']);
         add_shortcode('cfp_intake_form', [self::class, 'intake_form']);
+        add_shortcode('cfp_booking_funnel', [self::class, 'booking_funnel']);
+        add_shortcode('cfp_user_portal', [self::class, 'user_portal']);
     }
 
     public static function calendar_booking($atts): string
@@ -58,5 +60,74 @@ class Shortcodes
         echo '</div></div>';
         return ob_get_clean();
     }
-}
 
+    public static function booking_funnel($atts): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        $out = '';
+        $login_url = wp_login_url(esc_url(add_query_arg([], home_url($_SERVER['REQUEST_URI'] ?? '/'))));
+        $register_url = wp_registration_url();
+        if (!is_user_logged_in()) {
+            $out .= '<div class="cfp-funnel-auth"><p>Please log in or register to book.</p>';
+            $out .= '<p><a class="button" href="' . esc_url($login_url) . '">Log In</a> ';
+            $out .= '<a class="button" href="' . esc_url($register_url) . '">Register</a></p></div>';
+            return $out;
+        }
+        // Intake gating if required
+        if (\ClassFlowPro\Admin\Settings::get('require_intake', 0)) {
+            global $wpdb; $t=$wpdb->prefix.'cfp_intake_forms';
+            $has = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", get_current_user_id()));
+            if ($has <= 0) {
+                $out .= '<div class="cfp-funnel-intake"><p>Please complete your intake before booking.</p>';
+                $out .= do_shortcode('[cfp_intake_form]');
+                $out .= '</div>';
+                return $out;
+            }
+        }
+        // Show booking widget
+        $out .= do_shortcode('[cfp_step_booking]');
+        return $out;
+    }
+
+    public static function user_portal($atts): string
+    {
+        if (!is_user_logged_in()) {
+            $login_url = wp_login_url(esc_url(add_query_arg([], home_url($_SERVER['REQUEST_URI'] ?? '/'))));
+            return '<p>Please <a href="' . esc_url($login_url) . '">log in</a> to view your portal.</p>';
+        }
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('cfp-portal', CFP_PLUGIN_URL . 'assets/js/portal.js', ['jquery'], '1.0.0', true);
+        // Localize data expected by portal.js
+        wp_localize_script('cfp-portal', 'CFP_DATA', [
+            'restUrl' => esc_url_raw(rest_url('classflow/v1/')),
+            'businessTimezone' => \ClassFlowPro\Admin\Settings::get('business_timezone', (function_exists('wp_timezone_string') ? wp_timezone_string() : 'UTC')),
+        ]);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        $show_thanks = isset($_GET['cfp_checkout']) && sanitize_text_field((string)$_GET['cfp_checkout']) === 'success';
+        echo '<div class="cfp-portal" data-nonce="' . esc_attr($nonce) . '">';
+        if ($show_thanks) {
+            echo '<div class="cfp-portal-banner cfp-portal-success" role="status">' . esc_html__('Thank you! Your checkout completed successfully.', 'classflow-pro') . '</div>';
+        }
+        echo '<div class="cfp-portal-profile"><h3>Your Profile</h3><div class="cfp-profile-fields">';
+        $u = wp_get_current_user();
+        echo '<p><strong>Name:</strong> ' . esc_html($u->display_name ?: ($u->user_firstname . ' ' . $u->user_lastname)) . '</p>';
+        echo '<p><strong>Email:</strong> ' . esc_html($u->user_email) . '</p>';
+        // Client-editable basics
+        echo '<div class="cfp-profile-edit">'
+            . '<label>Phone <input type="tel" class="cfp-prof-phone"/></label>'
+            . '<label>Date of Birth <input type="date" class="cfp-prof-dob"/></label>'
+            . '<label>Emergency Contact Name <input type="text" class="cfp-prof-emg-name"/></label>'
+            . '<label>Emergency Contact Phone <input type="tel" class="cfp-prof-emg-phone"/></label>'
+            . '<button class="button button-primary cfp-prof-save">' . esc_html__('Save Profile', 'classflow-pro') . '</button>'
+            . '<div class="cfp-msg" aria-live="polite"></div>'
+            . '</div>';
+        echo '</div></div>';
+        echo '<div class="cfp-portal-upcoming"><h3>Upcoming Classes</h3><div class="cfp-list cfp-upcoming-list">Loading…</div></div>';
+        echo '<div class="cfp-portal-past"><h3>Past Classes</h3><div class="cfp-list cfp-past-list">Loading…</div></div>';
+        echo '<div class="cfp-portal-credits"><h3>Credits</h3><div class="cfp-credits">Loading…</div></div>';
+        echo '<div class="cfp-portal-notes"><h3>' . esc_html__('Notes', 'classflow-pro') . '</h3><div class="cfp-notes-list">Loading…</div></div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+}

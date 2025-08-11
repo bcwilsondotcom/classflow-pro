@@ -123,7 +123,7 @@ class Manager
         $intent = StripeGateway::create_intent([
             'amount_cents' => (int)$booking['amount_cents'],
             'currency' => $booking['currency'],
-            'description' => get_the_title($class_id) . ' — ' . gmdate('Y-m-d H:i', strtotime($schedule['start_time'])) . ' UTC',
+            'description' => \ClassFlowPro\Utils\Entities::class_name($class_id) . ' — ' . gmdate('Y-m-d H:i', strtotime($schedule['start_time'])) . ' UTC',
             'receipt_email' => $email,
             'customer_name' => $name,
             'instructor_id' => $instructor_id,

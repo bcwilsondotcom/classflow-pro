@@ -2,10 +2,6 @@
 namespace ClassFlowPro;
 
 use ClassFlowPro\Admin\Settings;
-use ClassFlowPro\PostTypes\ClassType;
-use ClassFlowPro\PostTypes\InstructorType;
-use ClassFlowPro\PostTypes\ResourceType;
-use ClassFlowPro\PostTypes\LocationType;
 use ClassFlowPro\REST\Routes;
 use ClassFlowPro\Elementor\Module as ElementorModule;
 use ClassFlowPro\Admin\Reports;
@@ -30,8 +26,7 @@ class Plugin
         // Load textdomain
         load_plugin_textdomain('classflow-pro', false, basename(CFP_PLUGIN_DIR) . '/languages');
 
-        // Register admin settings, post types, routes, assets, Elementor widgets
-        add_action('init', [$this, 'register_post_types']);
+        // Register admin settings, routes, assets, Elementor widgets
         add_action('init', [$this, 'register_assets']);
         add_action('admin_menu', [Settings::class, 'register_menu']);
         add_action('admin_init', [Settings::class, 'register_settings']);
@@ -54,14 +49,6 @@ class Plugin
         PrivacyExporters::register();
     }
 
-    public function register_post_types(): void
-    {
-        ClassType::register();
-        InstructorType::register();
-        ResourceType::register();
-        LocationType::register();
-    }
-
     public function register_assets(): void
     {
         wp_register_style('cfp-frontend', CFP_PLUGIN_URL . 'assets/css/frontend.css', [], '1.0.0');
@@ -73,17 +60,13 @@ class Plugin
             'businessCountry' => Admin\Settings::get('business_country', 'US'),
             'siteName' => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
             'businessTimezone' => Admin\Settings::get('business_timezone', (function_exists('wp_timezone_string') ? wp_timezone_string() : 'UTC')),
+            'useStripeCheckout' => (bool) Admin\Settings::get('stripe_use_checkout', 0),
         ];
         wp_localize_script('cfp-booking', 'CFP_DATA', $settings);
     }
 
     public function enqueue_admin_assets(): void
     {
-        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-        if (!$screen) return;
-        $pt = $screen->post_type ?? '';
-        if (in_array($pt, ['cfp_instructor','cfp_resource','cfp_class'], true)) {
-            wp_enqueue_script('cfp-admin', CFP_PLUGIN_URL . 'assets/js/admin.js', ['jquery'], '1.0.0', true);
-        }
+        // No longer enqueue CPT-specific admin assets; custom admin pages load standard WP assets.
     }
 }

@@ -25,6 +25,7 @@ $tables = [
     $wpdb->prefix . 'cfp_coupons',
     $wpdb->prefix . 'cfp_private_requests',
     $wpdb->prefix . 'cfp_intake_forms',
+    $wpdb->prefix . 'cfp_customer_notes',
 ];
 foreach ($tables as $t) {
     $wpdb->query("DROP TABLE IF EXISTS $t");
@@ -38,4 +39,3 @@ delete_option('cfp_db_version');
 
 // Delete user meta
 $wpdb->query("DELETE FROM {$wpdb->usermeta} WHERE meta_key IN ('cfp_ical_token')");
-

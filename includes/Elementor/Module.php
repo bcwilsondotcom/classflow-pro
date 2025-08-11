@@ -9,6 +9,7 @@ class Module
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\BuyPackageWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\BookPrivateWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\ClientDashboardWidget());
+        \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\ClientPortalWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\IntakeFormWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\CalendarBookingWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\StepBookingWidget());

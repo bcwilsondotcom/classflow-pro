@@ -13,9 +13,10 @@ class QuickBooksTools
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_POST['cfp_qb_sync_items']) && check_admin_referer('cfp_qb_tools')) {
                 $count = 0;
-                $classes = get_posts(['post_type' => 'cfp_class', 'numberposts' => -1, 'post_status' => 'publish']);
-                foreach ($classes as $c) {
-                    try { if (QuickBooks::ensure_item_for_class((int)$c->ID)) $count++; } catch (\Throwable $e) {}
+                global $wpdb;
+                $rows = $wpdb->get_results("SELECT id FROM {$wpdb->prefix}cfp_classes WHERE status = 'active' ORDER BY id DESC", ARRAY_A);
+                foreach ($rows as $c) {
+                    try { if (QuickBooks::ensure_item_for_class((int)$c['id'])) $count++; } catch (\Throwable $e) {}
                 }
                 echo '<div class="notice notice-success"><p>Ensured items for ' . intval($count) . ' classes.</p></div>';
             }
@@ -53,4 +54,3 @@ class QuickBooksTools
         echo '</div>';
     }
 }
-

@@ -184,6 +184,91 @@ class Activator
         ) $charset_collate;";
         dbDelta($logs_sql);
 
+        // First-class entities tables
+        $classes_sql = "CREATE TABLE {$wpdb->prefix}cfp_classes (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(191) NOT NULL,
+            description LONGTEXT NULL,
+            duration_mins INT NOT NULL DEFAULT 60,
+            capacity INT NOT NULL DEFAULT 8,
+            price_cents BIGINT NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT 'usd',
+            status VARCHAR(20) NOT NULL DEFAULT 'active', -- active|inactive|draft
+            scheduling_type VARCHAR(20) NOT NULL DEFAULT 'fixed', -- fixed|flexible
+            featured_image_id BIGINT UNSIGNED NULL,
+            default_location_id BIGINT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY status (status),
+            KEY name (name),
+            KEY default_location_id (default_location_id)
+        ) $charset_collate;";
+        dbDelta($classes_sql);
+
+        $instructors_sql = "CREATE TABLE {$wpdb->prefix}cfp_instructors (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(191) NOT NULL,
+            bio LONGTEXT NULL,
+            email VARCHAR(191) NULL,
+            payout_percent DECIMAL(5,2) NULL,
+            stripe_account_id VARCHAR(191) NULL,
+            availability_weekly TEXT NULL,
+            blackout_dates TEXT NULL,
+            featured_image_id BIGINT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY email (email)
+        ) $charset_collate;";
+        dbDelta($instructors_sql);
+
+        $locations_sql = "CREATE TABLE {$wpdb->prefix}cfp_locations (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(191) NOT NULL,
+            address1 VARCHAR(191) NULL,
+            address2 VARCHAR(191) NULL,
+            city VARCHAR(100) NULL,
+            state VARCHAR(100) NULL,
+            postal_code VARCHAR(20) NULL,
+            country VARCHAR(2) NULL,
+            timezone VARCHAR(40) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY name (name)
+        ) $charset_collate;";
+        dbDelta($locations_sql);
+
+        $resources_sql = "CREATE TABLE {$wpdb->prefix}cfp_resources (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(191) NOT NULL,
+            type VARCHAR(50) NULL,
+            capacity INT NULL,
+            location_id BIGINT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY location_id (location_id)
+        ) $charset_collate;";
+        dbDelta($resources_sql);
+
+        // Customer notes (staff-entered; some visible to user)
+        $notes_sql = "CREATE TABLE {$wpdb->prefix}cfp_customer_notes (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id BIGINT UNSIGNED NOT NULL,
+            note TEXT NOT NULL,
+            visible_to_user TINYINT(1) NOT NULL DEFAULT 0,
+            created_by BIGINT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY user_id (user_id),
+            KEY visible_to_user (visible_to_user),
+            KEY created_at (created_at)
+        ) $charset_collate;";
+        dbDelta($notes_sql);
+
+
         // Default options
         add_option('cfp_settings', [
             'currency' => 'usd',

@@ -15,10 +15,12 @@ class Settings
             60
         );
         add_submenu_page('classflow-pro', __('Dashboard', 'classflow-pro'), __('Dashboard', 'classflow-pro'), 'manage_options', 'classflow-pro', ['ClassFlowPro\\Admin\\Dashboard', 'render']);
-        add_submenu_page('classflow-pro', __('Classes', 'classflow-pro'), __('Classes', 'classflow-pro'), 'edit_posts', 'edit.php?post_type=cfp_class');
-        add_submenu_page('classflow-pro', __('Add New Class', 'classflow-pro'), __('Add New Class', 'classflow-pro'), 'edit_posts', 'post-new.php?post_type=cfp_class');
-        add_submenu_page('classflow-pro', __('Locations', 'classflow-pro'), __('Locations', 'classflow-pro'), 'edit_posts', 'edit.php?post_type=cfp_location');
-        add_submenu_page('classflow-pro', __('Add New Location', 'classflow-pro'), __('Add New Location', 'classflow-pro'), 'edit_posts', 'post-new.php?post_type=cfp_location');
+        // Custom Classes admin page (replaces default CPT UI)
+        add_submenu_page('classflow-pro', __('Classes', 'classflow-pro'), __('Classes', 'classflow-pro'), 'edit_posts', 'classflow-pro-classes', ['ClassFlowPro\\Admin\\Classes', 'render']);
+        // Custom entity admin pages (non-CPT)
+        add_submenu_page('classflow-pro', __('Instructors', 'classflow-pro'), __('Instructors', 'classflow-pro'), 'manage_options', 'classflow-pro-instructors', ['ClassFlowPro\\Admin\\Instructors', 'render']);
+        add_submenu_page('classflow-pro', __('Locations', 'classflow-pro'), __('Locations', 'classflow-pro'), 'manage_options', 'classflow-pro-locations', ['ClassFlowPro\\Admin\\Locations', 'render']);
+        add_submenu_page('classflow-pro', __('Resources', 'classflow-pro'), __('Resources', 'classflow-pro'), 'manage_options', 'classflow-pro-resources', ['ClassFlowPro\\Admin\\Resources', 'render']);
         add_submenu_page('classflow-pro', __('Bookings', 'classflow-pro'), __('Bookings', 'classflow-pro'), 'manage_options', 'classflow-pro-bookings', ['ClassFlowPro\\Admin\\Bookings', 'render']);
         add_submenu_page('classflow-pro', __('Coupons', 'classflow-pro'), __('Coupons', 'classflow-pro'), 'manage_options', 'classflow-pro-coupons', ['ClassFlowPro\\Admin\\Coupons', 'render']);
         add_submenu_page('classflow-pro', __('QuickBooks Tools', 'classflow-pro'), __('QuickBooks Tools', 'classflow-pro'), 'manage_options', 'classflow-pro-qbtools', ['ClassFlowPro\\Admin\\QuickBooksTools', 'render']);
@@ -28,6 +30,7 @@ class Settings
         add_submenu_page('classflow-pro', __('Logs', 'classflow-pro'), __('Logs', 'classflow-pro'), 'manage_options', 'classflow-pro-logs', ['ClassFlowPro\\Admin\\Logs', 'render']);
         add_submenu_page('classflow-pro', __('Reports', 'classflow-pro'), __('Reports', 'classflow-pro'), 'manage_options', 'classflow-pro-reports', ['ClassFlowPro\\Admin\\Reports', 'render']);
         add_submenu_page('classflow-pro', __('Payouts', 'classflow-pro'), __('Payouts', 'classflow-pro'), 'manage_options', 'classflow-pro-payouts', ['ClassFlowPro\\Admin\\Payouts', 'render']);
+        add_submenu_page('classflow-pro', __('Customer Notes', 'classflow-pro'), __('Customer Notes', 'classflow-pro'), 'manage_options', 'classflow-pro-notes', ['ClassFlowPro\\Admin\\CustomerNotes', 'render']);
     }
 
     public static function register_settings(): void
@@ -61,6 +64,10 @@ class Settings
         add_settings_field('stripe_enable_tax', __('Enable Stripe Tax', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_enable_tax']);
         add_settings_field('stripe_connect_enabled', __('Enable Stripe Connect', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_connect_enabled']);
         add_settings_field('platform_fee_percent', __('Platform Fee %', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_stripe', ['key' => 'platform_fee_percent', 'step' => '0.1']);
+        add_settings_field('stripe_use_checkout', __('Use Stripe Checkout', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_use_checkout']);
+        add_settings_field('stripe_allow_promo_codes', __('Allow Promotion Codes (Checkout)', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_allow_promo_codes']);
+        add_settings_field('checkout_success_url', __('Checkout Success URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_success_url']);
+        add_settings_field('checkout_cancel_url', __('Checkout Cancel URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_cancel_url']);
 
         add_settings_section('cfp_quickbooks', __('QuickBooks Online', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Connect to QuickBooks to create sales receipts automatically on successful payments.', 'classflow-pro') . '</p>';
@@ -137,6 +144,14 @@ class Settings
         $output['stripe_enable_tax'] = isset($output['stripe_enable_tax']) ? 1 : 0;
         $output['stripe_connect_enabled'] = isset($output['stripe_connect_enabled']) ? 1 : 0;
         $output['platform_fee_percent'] = isset($output['platform_fee_percent']) ? floatval($output['platform_fee_percent']) : 0.0;
+        $output['stripe_use_checkout'] = isset($output['stripe_use_checkout']) ? 1 : 0;
+        $output['stripe_allow_promo_codes'] = isset($output['stripe_allow_promo_codes']) ? 1 : 0;
+        foreach (['checkout_success_url','checkout_cancel_url'] as $uk) {
+            if (isset($output[$uk])) {
+                $out = trim(wp_unslash($output[$uk]));
+                $output[$uk] = $out ? esc_url_raw($out) : '';
+            }
+        }
         $output['cancellation_window_hours'] = isset($output['cancellation_window_hours']) ? max(0, intval($output['cancellation_window_hours'])) : 0;
         $output['reschedule_window_hours'] = isset($output['reschedule_window_hours']) ? max(0, intval($output['reschedule_window_hours'])) : 0;
         $output['notify_customer'] = isset($output['notify_customer']) ? 1 : 0;

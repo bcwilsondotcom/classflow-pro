@@ -76,6 +76,15 @@ class Schedules
             }
         }
 
+        // AJAX for class default location
+        add_action('wp_ajax_cfp_get_class_default_location', function () use ($wpdb) {
+            $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+            check_ajax_referer('cfp_admin');
+            if (!$id) { wp_send_json_error(['message' => 'Invalid ID'], 400); }
+            $loc = (int) $wpdb->get_var($wpdb->prepare("SELECT default_location_id FROM {$wpdb->prefix}cfp_classes WHERE id=%d", $id));
+            wp_send_json(['location_id' => $loc]);
+        });
+
         // List schedules
         $rows = $wpdb->get_results("SELECT * FROM $table ORDER BY start_time DESC LIMIT 100", ARRAY_A);
         echo '<div class="wrap"><h1>Schedules</h1>';
@@ -84,14 +93,20 @@ class Schedules
         wp_nonce_field('cfp_add_schedule');
         echo '<table class="form-table"><tbody>';
         echo '<tr><th>Class ID</th><td><input name="class_id" type="number" min="1" required></td></tr>';
-        echo '<tr><th>Instructor ID</th><td><input name="instructor_id" type="number" min="0"></td></tr>';
-        echo '<tr><th>Resource ID</th><td><input name="resource_id" type="number" min="0"></td></tr>';
-        echo '<tr><th>Location</th><td>';
-        $locations = get_posts(['post_type' => 'cfp_location', 'numberposts' => -1, 'post_status' => 'publish']);
-        echo '<select name="location_id"><option value="">— Select —</option>';
-        foreach ($locations as $loc) {
-            echo '<option value="' . esc_attr($loc->ID) . '">' . esc_html($loc->post_title) . '</option>';
-        }
+        // Instructors (first-class table)
+        $ins = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}cfp_instructors ORDER BY name ASC", ARRAY_A);
+        echo '<tr><th>Instructor</th><td><select name="instructor_id"><option value="">— Select —</option>';
+        foreach ($ins as $i) { echo '<option value="'.esc_attr((string)$i['id']).'">'.esc_html($i['name']).'</option>'; }
+        echo '</select></td></tr>';
+        // Resources
+        $res = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}cfp_resources ORDER BY name ASC", ARRAY_A);
+        echo '<tr><th>Resource</th><td><select name="resource_id"><option value="">— Select —</option>';
+        foreach ($res as $rr) { echo '<option value="'.esc_attr((string)$rr['id']).'">'.esc_html($rr['name']).'</option>'; }
+        echo '</select></td></tr>';
+        // Locations
+        $locations = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}cfp_locations ORDER BY name ASC", ARRAY_A);
+        echo '<tr><th>Location</th><td><select name="location_id"><option value="">— Select —</option>';
+        foreach ($locations as $loc) { echo '<option value="' . esc_attr((string)$loc['id']) . '">' . esc_html($loc['name']) . '</option>'; }
         echo '</select></td></tr>';
         echo '<tr><th>Start (UTC)</th><td><input name="start_time" type="datetime-local" required></td></tr>';
         echo '<tr><th>End (UTC)</th><td><input name="end_time" type="datetime-local" required></td></tr>';
@@ -102,17 +117,20 @@ class Schedules
         echo '</tbody></table>';
         submit_button('Add Schedule');
         echo '</form>';
-        $rest_base = esc_url_raw( rest_url('wp/v2/cfp_class/') );
-        $nonce = wp_create_nonce('wp_rest');
-        echo '<script>(function(){var cls=document.querySelector("input[name=class_id]");var loc=document.querySelector("select[name=location_id]");function go(){var id=parseInt(cls.value,10);if(!id||!loc||loc.value) return; fetch("'.esc_js($rest_base).'"+id,{headers:{"X-WP-Nonce":"'.esc_js($nonce).'"}}).then(function(r){return r.json()}).then(function(d){try{ if(d && d.meta && d.meta._cfp_default_location_id){ var v=parseInt(d.meta._cfp_default_location_id,10)||0; if(v){ loc.value=String(v);} } }catch(e){} }).catch(function(){});} if(cls){cls.addEventListener("change",go);cls.addEventListener("blur",go);} })();</script>';
+        $ajax = esc_js(admin_url('admin-ajax.php'));
+        $nonce = esc_js(wp_create_nonce('cfp_admin'));
+        echo '<script>(function(){var cls=document.querySelector("input[name=class_id]");var loc=document.querySelector("select[name=location_id]");function go(){var id=parseInt(cls.value,10);if(!id||!loc||loc.value) return; var u="'.$ajax.'?action=cfp_get_class_default_location&_ajax_nonce='.$nonce.'&id="+id; fetch(u).then(function(r){return r.json()}).then(function(d){try{ if(d && d.location_id){ loc.value=String(d.location_id);} }catch(e){} }).catch(function(){});} if(cls){cls.addEventListener("change",go);cls.addEventListener("blur",go);} })();</script>';
         echo '<h2>Recent Schedules</h2>';
         echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Class</th><th>Instructor</th><th>Location</th><th>Start</th><th>End</th><th>Capacity</th><th>Price</th><th>Private</th></tr></thead><tbody>';
         foreach ($rows as $r) {
+            $class_name = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']);
             echo '<tr>';
             echo '<td>' . intval($r['id']) . '</td>';
-            echo '<td>' . esc_html(get_the_title((int)$r['class_id'])) . ' (#' . intval($r['class_id']) . ')</td>';
-            echo '<td>' . ($r['instructor_id'] ? esc_html(get_the_title((int)$r['instructor_id'])) . ' (#' . intval($r['instructor_id']) . ')' : '-') . '</td>';
-            echo '<td>' . ($r['location_id'] ? esc_html(get_the_title((int)$r['location_id'])) : '-') . '</td>';
+            echo '<td>' . esc_html($class_name) . ' (#' . intval($r['class_id']) . ')</td>';
+            $iname = $r['instructor_id'] ? $wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}cfp_instructors WHERE id=%d", (int)$r['instructor_id'])) : null;
+            $lname = $r['location_id'] ? $wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}cfp_locations WHERE id=%d", (int)$r['location_id'])) : null;
+            echo '<td>' . ($r['instructor_id'] ? esc_html($iname ?: ('#'.intval($r['instructor_id']))) : '-') . '</td>';
+            echo '<td>' . ($r['location_id'] ? esc_html($lname ?: ('#'.intval($r['location_id']))) : '-') . '</td>';
             echo '<td>' . esc_html($r['start_time']) . '</td>';
             echo '<td>' . esc_html($r['end_time']) . '</td>';
             echo '<td>' . intval($r['capacity']) . '</td>';

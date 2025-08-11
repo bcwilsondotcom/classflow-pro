@@ -26,3 +26,9 @@
 .cfp-step { margin-top:8px; }
 .cfp-step label { display:inline-block; margin-right:10px; }
 .cfp-times .cfp-time { display:inline-block; margin:6px; padding:6px 8px; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; }
+
+/* Portal */
+.cfp-portal-banner { border:1px solid #22c55e; background:#ecfdf5; color:#166534; padding:8px 10px; border-radius:6px; margin-bottom:12px; }
+.cfp-portal .cfp-profile-edit label { display:block; margin:6px 0; }
+.cfp-portal .cfp-notes-list .cfp-item { padding:6px 8px; border:1px solid #e2e8f0; border-radius:4px; margin:6px 0; background:#fff; }
+.cfp-portal .cfp-notes-list .cfp-note-date { font-size:12px; color:#64748b; }

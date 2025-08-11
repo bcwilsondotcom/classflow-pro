@@ -61,16 +61,35 @@
   $(document).on('click', '.cfp-next-2', function(){ const $r=$(this).closest('.cfp-step-booking'); if (!$r.data('schedule_id')) { alert('Pick a time'); return; } $r.find('.cfp-step').hide(); $r.find('.cfp-step-3').show(); });
   $(document).on('click', '.cfp-prev-3', function(){ const $r=$(this).closest('.cfp-step-booking'); $r.find('.cfp-step').hide(); $r.find('.cfp-step-2').show(); });
   $(document).on('click', '.cfp-next-3', async function(){ const $r=$(this).closest('.cfp-step-booking'); const data=await createBooking($r); if(!data)return; $r.find('.cfp-review').text('Total: ' + (data.amount_cents/100).toFixed(2) + ' ' + (data.currency||'USD').toUpperCase()); if (data.amount_cents>0) { await setupPayment($r, data); } $r.find('.cfp-step').hide(); $r.find('.cfp-step-4').show(); });
+  $(document).on('click', '.cfp-next-3', async function(){
+    const $r=$(this).closest('.cfp-step-booking');
+    const data=await createBooking($r); if(!data)return;
+    $r.find('.cfp-review').text('Total: ' + (data.amount_cents/100).toFixed(2) + ' ' + (data.currency||'USD').toUpperCase());
+    if (data.amount_cents>0) {
+      if (CFP_DATA.useStripeCheckout) {
+        try {
+          const resp = await fetch(CFP_DATA.restUrl + 'stripe/checkout_session', { method:'POST', headers: headers($r), body: JSON.stringify({ booking_id: data.booking_id }) });
+          const js = await resp.json();
+          if (!resp.ok) { $r.find('.cfp-msg').text(js.message || 'Failed to start checkout'); return; }
+          window.location.href = js.url;
+          return;
+        } catch(e) { $r.find('.cfp-msg').text('Failed to start checkout'); return; }
+      } else {
+        await setupPayment($r, data);
+      }
+    }
+    $r.find('.cfp-step').hide(); $r.find('.cfp-step-4').show();
+  });
   $(document).on('click', '.cfp-prev-4', function(){ const $r=$(this).closest('.cfp-step-booking'); $r.find('.cfp-step').hide(); $r.find('.cfp-step-3').show(); });
   $(document).on('click', '.cfp-step-booking .cfp-pay', function(){ confirm($(this).closest('.cfp-step-booking')); });
   async function populateFilters($root) {
     try {
-      const base = CFP_DATA.restUrl.replace('classflow/v1/','wp/v2/');
-      const classes = await (await fetch(base + 'cfp_class?per_page=100&_fields=id,title')).json();
-      const locs = await (await fetch(base + 'cfp_location?per_page=100&_fields=id,title')).json();
+      const base = CFP_DATA.restUrl + 'entities/';
+      const classes = await (await fetch(base + 'classes?per_page=100')).json();
+      const locs = await (await fetch(base + 'locations?per_page=100')).json();
       const $cls = $root.find('.cfp-class'); const $loc = $root.find('.cfp-loc');
-      if (Array.isArray(classes)) classes.forEach(c => { $cls.append('<option value="'+c.id+'">'+(c.title?.rendered || ('#'+c.id))+'</option>'); });
-      if (Array.isArray(locs)) locs.forEach(l => { $loc.append('<option value="'+l.id+'">'+(l.title?.rendered || ('#'+l.id))+'</option>'); });
+      if (Array.isArray(classes)) classes.forEach(c => { $cls.append('<option value="'+c.id+'">'+(c.name || ('#'+c.id))+'</option>'); });
+      if (Array.isArray(locs)) locs.forEach(l => { $loc.append('<option value="'+l.id+'">'+(l.name || ('#'+l.id))+'</option>'); });
     } catch(e) {}
   }
 
