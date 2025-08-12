@@ -73,7 +73,8 @@
         byDay[d].forEach(r => {
           const tz = r.tz || CFP_DATA.businessTimezone || 'UTC';
           const t = formatTimeLocal(r.start_time, tz);
-          const item = $('<div class="cfp-agenda-item"></div>');
+          const color = pickClassColor(r.class_id, r.class_color);
+          const item = $('<div class="cfp-agenda-item"></div>').css({ borderLeft: '4px solid '+color, paddingLeft:'6px' });
           item.append('<span>'+ t +' — '+ (r.class_title||'') +'</span>');
           const btn = $('<button>Book</button>').on('click', ()=> selectSchedule($root, r));
           item.append(btn); day.append(item);
@@ -110,7 +111,9 @@
           const tz = r.tz || CFP_DATA.businessTimezone || 'UTC';
           const t = formatTimeLocal(r.start_time, tz);
           const label = t + ' • ' + (r.class_title||'');
-          const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+'">'+label+'</div>').on('click', () => selectSchedule($root, r));
+          const color = pickClassColor(r.class_id, r.class_color);
+          const styles = styleForColor(color);
+          const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+'">'+label+'</div>').css(styles).on('click', () => selectSchedule($root, r));
           cell.append(ev);
         });
         $grid.append(cell);
@@ -144,7 +147,9 @@
       dayEvents.slice(0, 3).forEach(r => {
         const tz = r.tz || CFP_DATA.businessTimezone || 'UTC';
         const t = formatTimeLocal(r.start_time, tz);
-        const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+' at '+t+'">'+t+' '+( r.class_title||'')+'</div>').on('click', () => selectSchedule($root, r));
+        const color = pickClassColor(r.class_id, r.class_color);
+        const styles = styleForColor(color);
+        const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+' at '+t+'">'+t+' '+( r.class_title||'')+'</div>').css(styles).on('click', () => selectSchedule($root, r));
         cell.append(ev);
       });
       
@@ -171,8 +176,10 @@
     const dt = new Date(r.start_time + 'Z').toLocaleString(undefined, { timeZone: tz });
     const cur = (r.currency||'usd').toUpperCase();
     const price = (typeof r.price_cents !== 'undefined' && r.price_cents !== null) ? (Number(r.price_cents)/100).toFixed(2) + ' ' + cur : '';
+    const color = pickClassColor(r.class_id, r.class_color);
+    const dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+color+';margin-right:6px;vertical-align:middle;"></span>';
     const priceLine = price ? ('<div><small>Price: '+ price +'</small></div>') : '';
-    $root.find('.cfp-cal-selected').html('<div><strong>'+ (r.class_title||'') +'</strong><br><small>'+ dt + (r.location_name?(' — '+r.location_name):'') +'</small>'+priceLine+'</div>');
+    $root.find('.cfp-cal-selected').html('<div>'+dot+'<strong>'+ (r.class_title||'') +'</strong><br><small>'+ dt + (r.location_name?(' — '+r.location_name):'') +'</small>'+priceLine+'</div>');
   }
 
   async function createBooking($root) {
@@ -564,6 +571,12 @@
         console.error('Calendar init error:', e);
         $r.find('.cfp-cal-grid').removeClass('cfp-loading').html('<div style="text-align:center;padding:40px;color:#dc2626;">Failed to load calendar. Please refresh the page.</div>');
       }); 
-    }); 
-  });
+    });
+  }); 
+  // Inject legend containers and initial load handled above in loadMonth
+  // Color helpers
+  const PALETTE = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#eab308','#22c55e','#f43f5e','#0ea5e9','#a855f7'];
+  function pickClassColor(classId, override){ if (override && /^#?[0-9a-fA-F]{6}$/.test(override)) return override[0]==='#'?override:'#'+override; const id=parseInt(classId||0,10); const idx = (id && id>0) ? (id % PALETTE.length) : 0; return PALETTE[idx]; }
+  function styleForColor(hex){ const rgb = hexToRgb(hex); const bg = 'rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.15)'; const border = hex; const text = '#111827'; return { backgroundColor: bg, border: '1px solid '+border, color: text, borderRadius:'6px', padding:'2px 4px' }; }
+  function hexToRgb(hex){ hex=hex.replace('#',''); const bigint=parseInt(hex,16); return { r: (bigint>>16)&255, g:(bigint>>8)&255, b: bigint&255 } }
 })(jQuery);

@@ -69,6 +69,7 @@ class ClassesRepository
             'scheduling_type' => 'fixed',
             'featured_image_id' => null,
             'default_location_id' => null,
+            'color_hex' => null,
         ];
         $row = array_merge($defaults, $data);
         $this->db->insert($this->table, [
@@ -82,9 +83,10 @@ class ClassesRepository
             'scheduling_type' => $row['scheduling_type'],
             'featured_image_id' => $row['featured_image_id'] ? (int) $row['featured_image_id'] : null,
             'default_location_id' => $row['default_location_id'] ? (int) $row['default_location_id'] : null,
+            'color_hex' => $row['color_hex'] ? $row['color_hex'] : null,
             'created_at' => current_time('mysql', true),
             'updated_at' => current_time('mysql', true),
-        ], ['%s','%s','%d','%d','%d','%s','%s','%s','%d','%d','%s','%s']);
+        ], ['%s','%s','%d','%d','%d','%s','%s','%s','%d','%d','%s','%s','%s']);
         return (int) $this->db->insert_id;
     }
 
@@ -95,7 +97,7 @@ class ClassesRepository
         $map = [
             'name' => '%s', 'description' => '%s', 'duration_mins' => '%d', 'capacity' => '%d',
             'price_cents' => '%d', 'currency' => '%s', 'status' => '%s', 'scheduling_type' => '%s',
-            'featured_image_id' => '%d', 'default_location_id' => '%d'
+            'featured_image_id' => '%d', 'default_location_id' => '%d', 'color_hex' => '%s'
         ];
         foreach ($map as $k => $fmt) {
             if (array_key_exists($k, $data)) {

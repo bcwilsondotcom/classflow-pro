@@ -56,6 +56,7 @@ class Shortcodes
                             <select class="cfp-filter-instructor">
                                 <option value="">All Instructors</option>
                             </select>
+                            <div class="cfp-cal-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-left:8px;"></div>
                         </div>
                     </div>
                     <div class="cfp-cal-grid cfp-loading"></div>
@@ -131,6 +132,7 @@ class Shortcodes
                             <select class="cfp-filter-instructor">
                                 <option value="">All Instructors</option>
                             </select>
+                            <div class="cfp-cal-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-left:8px;"></div>
                         </div>
                     </div>
                 </div>

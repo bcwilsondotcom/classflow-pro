@@ -143,6 +143,7 @@ class Classes
         $status = $row['status'] ?? 'active';
         $thumb_id = !empty($row['featured_image_id']) ? (int)$row['featured_image_id'] : 0;
         $default_location_id = !empty($row['default_location_id']) ? (int)$row['default_location_id'] : 0;
+        $color_hex = $row['color_hex'] ?? '';
 
         global $wpdb;
         $locations = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}cfp_locations ORDER BY name", ARRAY_A);
@@ -207,6 +208,13 @@ class Classes
                                                     <option value="draft" <?php selected($status, 'draft'); ?>><?php esc_html_e('Draft', 'classflow-pro'); ?></option>
                                                     <option value="inactive" <?php selected($status, 'inactive'); ?>><?php esc_html_e('Inactive', 'classflow-pro'); ?></option>
                                                 </select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th><label for="cfp_color"><?php esc_html_e('Calendar Color', 'classflow-pro'); ?></label></th>
+                                            <td>
+                                                <input type="color" id="cfp_color" name="color_hex" value="<?php echo esc_attr($color_hex ?: '#3b82f6'); ?>" />
+                                                <p class="description"><?php esc_html_e('Optional. Choose a color to represent this class on the booking calendar. If unset, a color is assigned automatically.', 'classflow-pro'); ?></p>
                                             </td>
                                         </tr>
                                     </table>
@@ -280,6 +288,7 @@ class Classes
         $status = isset($_POST['status']) ? sanitize_key($_POST['status']) : 'active';
         $featured_id = isset($_POST['featured_image_id']) ? (int) $_POST['featured_image_id'] : 0;
         $default_location_id = isset($_POST['default_location_id']) ? (int) $_POST['default_location_id'] : 0;
+        $color_hex = isset($_POST['color_hex']) ? sanitize_hex_color($_POST['color_hex']) : '';
 
         $repo = new \ClassFlowPro\DB\Repositories\ClassesRepository();
         $was_existing = $id > 0;
@@ -294,6 +303,7 @@ class Classes
                 'status' => in_array($status, ['active','draft','inactive'], true) ? $status : 'active',
                 'featured_image_id' => $featured_id ?: null,
                 'default_location_id' => $default_location_id ?: null,
+                'color_hex' => $color_hex ?: null,
             ]);
         } else {
             $id = $repo->create([
@@ -306,6 +316,7 @@ class Classes
                 'status' => in_array($status, ['active','draft','inactive'], true) ? $status : 'active',
                 'featured_image_id' => $featured_id ?: null,
                 'default_location_id' => $default_location_id ?: null,
+                'color_hex' => $color_hex ?: null,
             ]);
         }
         $msg = $was_existing ? 'updated' : 'created';
@@ -389,4 +400,3 @@ class Classes
         }
     }
 }
-

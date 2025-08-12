@@ -40,4 +40,18 @@ class Entities
         $title = get_the_title($id);
         return is_string($title) ? $title : '';
     }
+
+    public static function class_color(?int $id): ?string
+    {
+        if (!$id) return null;
+        global $wpdb;
+        try {
+            $hex = $wpdb->get_var($wpdb->prepare("SELECT color_hex FROM {$wpdb->prefix}cfp_classes WHERE id = %d", $id));
+            $hex = is_string($hex) ? trim($hex) : '';
+            if ($hex && preg_match('/^#?[0-9a-fA-F]{6}$/', $hex)) {
+                return $hex[0] === '#' ? $hex : ('#' . $hex);
+            }
+        } catch (\Throwable $e) {}
+        return null;
+    }
 }

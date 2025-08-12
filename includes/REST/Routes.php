@@ -92,6 +92,13 @@ class Routes
                 return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
             },
         ]);
+        register_rest_route('classflow/v1', '/book_bulk', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'book_bulk'],
+            'permission_callback' => function () {
+                return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
+            },
+        ]);
 
         // Auth helpers for modal login/register
         register_rest_route('classflow/v1', '/login', [
@@ -283,6 +290,7 @@ class Routes
         $rows = $wpdb->get_results($prepared, ARRAY_A);
         foreach ($rows as &$row) {
             $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+            $row['class_color'] = \ClassFlowPro\Utils\Entities::class_color((int)$row['class_id']);
             $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
             $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
@@ -329,6 +337,7 @@ class Routes
             }
             unset($row['class_price_cents'], $row['class_currency']);
             $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+            $row['class_color'] = \ClassFlowPro\Utils\Entities::class_color((int)$row['class_id']);
             $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
             $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
@@ -442,6 +451,53 @@ class Routes
         }
         $result['intake_required'] = $intake_required;
         return rest_ensure_response($result);
+    }
+
+    public static function book_bulk(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $ids = $data['schedule_ids'] ?? [];
+        if (!is_array($ids) || empty($ids)) return new WP_Error('cfp_invalid_request', __('Missing schedule_ids', 'classflow-pro'), ['status' => 400]);
+        $use_credits = !empty($data['use_credits']);
+        $customer = [
+            'user_id' => get_current_user_id() ?: null,
+            'email' => sanitize_email($data['email'] ?? ''),
+            'name' => sanitize_text_field($data['name'] ?? ''),
+        ];
+        // Policy checks similar to single book
+        $require_login = (bool) \ClassFlowPro\Admin\Settings::get('require_login_to_book', 0);
+        $auto_create = (bool) \ClassFlowPro\Admin\Settings::get('auto_create_user_on_booking', 1);
+        if ($require_login && empty($customer['user_id'])) {
+            return new WP_Error('cfp_auth_required', __('Please log in to book.', 'classflow-pro'), ['status' => 401]);
+        }
+        if (!$customer['user_id'] && $auto_create && $customer['email']) {
+            $existing = get_user_by('email', $customer['email']);
+            if ($existing) { $customer['user_id'] = (int)$existing->ID; }
+        }
+        if (!$customer['user_id'] && empty($customer['email'])) {
+            return new WP_Error('cfp_invalid_request', __('Missing customer info', 'classflow-pro'), ['status' => 400]);
+        }
+        $results = [];
+        $paid = [];
+        foreach ($ids as $sid) {
+            $sid = (int)$sid; if ($sid<=0) continue;
+            $res = \ClassFlowPro\Booking\Manager::book($sid, $customer, $use_credits);
+            if (is_wp_error($res)) {
+                $results[] = [ 'schedule_id' => $sid, 'ok' => false, 'error' => $res->get_error_message() ];
+                continue;
+            }
+            $results[] = [ 'schedule_id' => $sid, 'ok' => true, 'booking_id' => (int)$res['booking_id'], 'amount_cents' => (int)$res['amount_cents'], 'status' => $res['status'] ];
+            if (!empty($res['amount_cents'])) {
+                $paid[] = [ 'schedule_id' => $sid, 'booking_id' => (int)$res['booking_id'], 'amount_cents' => (int)$res['amount_cents'], 'currency' => $res['currency'] ?? 'usd' ];
+            }
+        }
+        // For now: if any require payment, return them for individual checkout (credits-only bulk supported)
+        return rest_ensure_response([
+            'ok' => true,
+            'items' => $results,
+            'requires_payment' => $paid,
+            'message' => empty($paid) ? __('All selected sessions booked using credits.', 'classflow-pro') : __('Some sessions require payment; please book those individually.', 'classflow-pro')
+        ]);
     }
 
     public static function private_request(WP_REST_Request $req)
