@@ -46,11 +46,32 @@ class Mailer
     }
     private static function send($to, string $subject, string $body): void
     {
-        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
-        if (is_array($to)) {
-            foreach ($to as $addr) { wp_mail($addr, $subject, $body, $headers); }
+        // Check if Gmail is enabled and use it if configured
+        if (Settings::get('gmail_enabled') && class_exists('\ClassFlowPro\Google\GmailService')) {
+            // Use Gmail API
+            if (is_array($to)) {
+                foreach ($to as $addr) {
+                    \ClassFlowPro\Google\GmailService::send_email([
+                        'to' => $addr,
+                        'subject' => $subject,
+                        'body' => $body,
+                    ]);
+                }
+            } else {
+                \ClassFlowPro\Google\GmailService::send_email([
+                    'to' => $to,
+                    'subject' => $subject,
+                    'body' => $body,
+                ]);
+            }
         } else {
-            wp_mail($to, $subject, $body, $headers);
+            // Fallback to wp_mail
+            $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+            if (is_array($to)) {
+                foreach ($to as $addr) { wp_mail($addr, $subject, $body, $headers); }
+            } else {
+                wp_mail($to, $subject, $body, $headers);
+            }
         }
     }
 

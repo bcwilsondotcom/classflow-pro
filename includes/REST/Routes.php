@@ -199,15 +199,98 @@ class Routes
             'args' => [ 'booking_id' => ['type' => 'integer', 'required' => true] ],
         ]);
 
-        // Google Calendar connect (optional)
+        // Google Workspace endpoints (enhanced)
         register_rest_route('classflow/v1', '/google/connect', [
             'methods' => 'GET',
-            'callback' => [GoogleCalendar::class, 'connect'],
+            'callback' => ['\ClassFlowPro\Google\GoogleService', 'connect'],
             'permission_callback' => function () { return current_user_can('manage_options'); },
         ]);
         register_rest_route('classflow/v1', '/google/callback', [
             'methods' => 'GET',
-            'callback' => [GoogleCalendar::class, 'callback'],
+            'callback' => ['\ClassFlowPro\Google\GoogleService', 'callback'],
+            'permission_callback' => '__return_true',
+        ]);
+        register_rest_route('classflow/v1', '/google/disconnect', [
+            'methods' => 'GET',
+            'callback' => ['\ClassFlowPro\Google\GoogleService', 'disconnect'],
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
+        
+        // Gmail test endpoint
+        register_rest_route('classflow/v1', '/google/gmail/test', [
+            'methods' => 'GET',
+            'callback' => ['\ClassFlowPro\Google\GmailService', 'test_connection'],
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
+        
+        // Drive export endpoints
+        register_rest_route('classflow/v1', '/google/drive/export/bookings', [
+            'methods' => 'POST',
+            'callback' => function(WP_REST_Request $request) {
+                $from = $request->get_param('date_from');
+                $to = $request->get_param('date_to');
+                $file_id = \ClassFlowPro\Google\DriveService::export_bookings($from, $to);
+                return $file_id ? ['success' => true, 'file_id' => $file_id] : new WP_Error('export_failed', 'Failed to export bookings');
+            },
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+            'args' => [
+                'date_from' => ['type' => 'string', 'required' => false],
+                'date_to' => ['type' => 'string', 'required' => false],
+            ],
+        ]);
+        
+        register_rest_route('classflow/v1', '/google/drive/export/revenue', [
+            'methods' => 'POST',
+            'callback' => function(WP_REST_Request $request) {
+                $period = $request->get_param('period') ?: 'month';
+                $file_id = \ClassFlowPro\Google\DriveService::export_revenue_report($period);
+                return $file_id ? ['success' => true, 'file_id' => $file_id] : new WP_Error('export_failed', 'Failed to export revenue report');
+            },
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+            'args' => [
+                'period' => ['type' => 'string', 'enum' => ['week', 'month', 'year'], 'required' => false],
+            ],
+        ]);
+        
+        register_rest_route('classflow/v1', '/google/drive/backup', [
+            'methods' => 'POST',
+            'callback' => function() {
+                $file_id = \ClassFlowPro\Google\DriveService::backup_database();
+                return $file_id ? ['success' => true, 'file_id' => $file_id] : new WP_Error('backup_failed', 'Failed to backup database');
+            },
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
+        
+        // Email tracking pixel endpoint
+        register_rest_route('classflow/v1', '/email/track/(?P<id>[a-zA-Z0-9]+)', [
+            'methods' => 'GET',
+            'callback' => function(WP_REST_Request $request) {
+                $tracking_id = $request->get_param('id');
+                $tracking_data = get_transient('cfp_email_track_' . $tracking_id);
+                
+                if ($tracking_data) {
+                    // Log the open
+                    $opens = get_option('cfp_email_opens', []);
+                    $opens[] = [
+                        'email' => $tracking_data['email'],
+                        'sent_at' => $tracking_data['sent_at'],
+                        'opened_at' => current_time('mysql'),
+                        'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                    ];
+                    
+                    // Keep only last 1000 opens
+                    if (count($opens) > 1000) {
+                        $opens = array_slice($opens, -1000);
+                    }
+                    
+                    update_option('cfp_email_opens', $opens, false);
+                }
+                
+                // Return 1x1 transparent pixel
+                header('Content-Type: image/gif');
+                echo base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+                exit;
+            },
             'permission_callback' => '__return_true',
         ]);
 

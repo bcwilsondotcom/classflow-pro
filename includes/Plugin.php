@@ -51,6 +51,66 @@ class Plugin
 
         // Notifications: schedule reminders
         Reminders::register();
+        
+        // Google Workspace integrations
+        $this->init_google_services();
+    }
+    
+    /**
+     * Initialize Google Workspace services
+     */
+    private function init_google_services(): void
+    {
+        // Auto-load Google service classes
+        if (Settings::get('google_calendar_enabled') || Settings::get('gmail_enabled') || 
+            Settings::get('google_drive_enabled') || Settings::get('google_contacts_enabled')) {
+            
+            // Schedule creation/update hooks for Google Calendar
+            if (Settings::get('google_calendar_enabled')) {
+                // Hook into schedule CRUD operations
+                add_action('cfp_schedule_created', function($schedule_id) {
+                    if (class_exists('\ClassFlowPro\Google\CalendarService')) {
+                        \ClassFlowPro\Google\CalendarService::sync_schedule($schedule_id);
+                    }
+                });
+                
+                add_action('cfp_schedule_updated', function($schedule_id) {
+                    if (class_exists('\ClassFlowPro\Google\CalendarService')) {
+                        \ClassFlowPro\Google\CalendarService::sync_schedule($schedule_id);
+                    }
+                });
+                
+                add_action('cfp_schedule_deleted', function($schedule_id) {
+                    if (class_exists('\ClassFlowPro\Google\CalendarService')) {
+                        \ClassFlowPro\Google\CalendarService::delete_event($schedule_id);
+                    }
+                });
+                
+                // Sync bookings if enabled
+                if (Settings::get('google_calendar_sync_bookings')) {
+                    add_action('cfp_booking_confirmed', function($booking_id) {
+                        if (class_exists('\ClassFlowPro\Google\CalendarService')) {
+                            \ClassFlowPro\Google\CalendarService::sync_booking($booking_id);
+                        }
+                    });
+                }
+            }
+            
+            // Schedule automatic Drive exports
+            if (Settings::get('google_drive_enabled')) {
+                add_action('init', function() {
+                    if (class_exists('\ClassFlowPro\Google\DriveService')) {
+                        \ClassFlowPro\Google\DriveService::schedule_auto_exports();
+                    }
+                });
+                
+                add_action('cfp_drive_auto_export', function() {
+                    if (class_exists('\ClassFlowPro\Google\DriveService')) {
+                        \ClassFlowPro\Google\DriveService::run_auto_exports();
+                    }
+                });
+            }
+        }
     }
 
     public function register_assets(): void

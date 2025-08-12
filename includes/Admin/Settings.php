@@ -116,13 +116,96 @@ class Settings
         add_settings_field('template_rescheduled_subject', __('Rescheduled Subject', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_rescheduled_subject']);
         add_settings_field('template_rescheduled_body', __('Rescheduled Body (HTML)', 'classflow-pro'), [self::class, 'field_textarea'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_rescheduled_body']);
 
-        add_settings_section('cfp_google', __('Google Calendar', 'classflow-pro'), function () {
-            echo '<p>' . esc_html__('Optionally sync schedules to a Google Calendar. Use connect at /wp-json/classflow/v1/google/connect', 'classflow-pro') . '</p>';
+        // Google Workspace Settings Section
+        add_settings_section('cfp_google', __('Google Workspace Integration', 'classflow-pro'), function () {
+            echo '<p>' . esc_html__('Connect ClassFlow Pro with Google Workspace services for enhanced functionality. Configure OAuth credentials once to enable multiple Google services.', 'classflow-pro') . '</p>';
+            echo '<div style="background:#f0f8ff;padding:10px;border-left:4px solid #0073aa;margin:10px 0;">';
+            echo '<strong>' . esc_html__('Setup Instructions:', 'classflow-pro') . '</strong><br>';
+            echo esc_html__('1. Go to Google Cloud Console → APIs & Services → Credentials', 'classflow-pro') . '<br>';
+            echo esc_html__('2. Create OAuth 2.0 Client ID (Web application)', 'classflow-pro') . '<br>';
+            echo esc_html__('3. Add redirect URI: ', 'classflow-pro') . '<code>' . esc_url(site_url('/wp-json/classflow/v1/google/callback')) . '</code><br>';
+            echo esc_html__('4. Enable required APIs: Calendar, Gmail, Drive, Meet', 'classflow-pro') . '<br>';
+            echo '</div>';
         }, 'classflow-pro');
-        add_settings_field('google_client_id', __('Client ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_id', 'help' => __('From Google Cloud Console → OAuth Client ID.', 'classflow-pro')]);
-        add_settings_field('google_client_secret', __('Client Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_secret', 'help' => __('OAuth client secret (keep private).', 'classflow-pro')]);
-        add_settings_field('google_calendar_id', __('Calendar ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_id', 'help' => __('Target calendar ID (e.g., you@example.com).', 'classflow-pro')]);
-        add_settings_field('google_redirect_uri', __('Redirect URI', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_redirect_uri', 'help' => __('Must match in Google app; points to our connect URL.', 'classflow-pro')]);
+        
+        // OAuth Settings
+        add_settings_field('google_oauth_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('OAuth Configuration', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_google');
+        
+        add_settings_field('google_client_id', __('Client ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_id', 'help' => __('OAuth 2.0 Client ID from Google Cloud Console', 'classflow-pro')]);
+        add_settings_field('google_client_secret', __('Client Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_secret', 'help' => __('OAuth client secret (keep private)', 'classflow-pro')]);
+        add_settings_field('google_redirect_uri', __('Redirect URI', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_redirect_uri', 'help' => __('Must match Google app configuration', 'classflow-pro')]);
+        
+        // Calendar Settings
+        add_settings_field('google_calendar_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('Google Calendar', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_google');
+        
+        add_settings_field('google_calendar_enabled', __('Enable Calendar Sync', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_enabled', 'help' => __('Sync class schedules to Google Calendar', 'classflow-pro')]);
+        add_settings_field('google_calendar_id', __('Calendar ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_id', 'help' => __('Target calendar (e.g., primary or calendar@group.calendar.google.com)', 'classflow-pro')]);
+        add_settings_field('google_calendar_sync_bookings', __('Sync Bookings', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_sync_bookings', 'help' => __('Add individual bookings as calendar events', 'classflow-pro')]);
+        add_settings_field('google_calendar_color', __('Event Color', 'classflow-pro'), [self::class, 'field_select'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_color', 'choices' => [
+            '' => __('Default', 'classflow-pro'),
+            '1' => __('Lavender', 'classflow-pro'),
+            '2' => __('Sage', 'classflow-pro'),
+            '3' => __('Grape', 'classflow-pro'),
+            '4' => __('Flamingo', 'classflow-pro'),
+            '5' => __('Banana', 'classflow-pro'),
+            '6' => __('Tangerine', 'classflow-pro'),
+            '7' => __('Peacock', 'classflow-pro'),
+            '8' => __('Graphite', 'classflow-pro'),
+            '9' => __('Blueberry', 'classflow-pro'),
+            '10' => __('Basil', 'classflow-pro'),
+            '11' => __('Tomato', 'classflow-pro'),
+        ]]);
+        
+        // Gmail Settings
+        add_settings_field('google_gmail_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('Gmail Integration', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_google');
+        
+        add_settings_field('gmail_enabled', __('Enable Gmail', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'gmail_enabled', 'help' => __('Use Gmail API for sending emails instead of wp_mail', 'classflow-pro')]);
+        add_settings_field('gmail_sender_email', __('Sender Email', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'gmail_sender_email', 'help' => __('Authorized Gmail address for sending (must be authenticated)', 'classflow-pro')]);
+        add_settings_field('gmail_sender_name', __('Sender Name', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'gmail_sender_name', 'help' => __('Display name for sent emails', 'classflow-pro')]);
+        add_settings_field('gmail_track_opens', __('Track Opens', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'gmail_track_opens', 'help' => __('Track when emails are opened (adds tracking pixel)', 'classflow-pro')]);
+        
+        // Google Meet Settings
+        add_settings_field('google_meet_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('Google Meet', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_google');
+        
+        add_settings_field('google_meet_enabled', __('Enable Meet Links', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_meet_enabled', 'help' => __('Automatically create Google Meet links for virtual classes', 'classflow-pro')]);
+        add_settings_field('google_meet_auto_create', __('Auto-Create for Virtual', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_meet_auto_create', 'help' => __('Automatically add Meet links when location is "Virtual" or "Online"', 'classflow-pro')]);
+        
+        // Google Drive Settings
+        add_settings_field('google_drive_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('Google Drive', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_google');
+        
+        add_settings_field('google_drive_enabled', __('Enable Drive Backup', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_drive_enabled', 'help' => __('Backup booking data and reports to Google Drive', 'classflow-pro')]);
+        add_settings_field('google_drive_folder_id', __('Folder ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_drive_folder_id', 'help' => __('Google Drive folder ID for backups (leave empty for root)', 'classflow-pro')]);
+        add_settings_field('google_drive_auto_export', __('Auto Export Reports', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_drive_auto_export', 'help' => __('Automatically export daily/weekly reports to Drive', 'classflow-pro')]);
+        
+        // Google Contacts Settings
+        add_settings_field('google_contacts_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('Google Contacts', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_google');
+        
+        add_settings_field('google_contacts_enabled', __('Enable Contacts Sync', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_google', ['key' => 'google_contacts_enabled', 'help' => __('Sync customer data with Google Contacts', 'classflow-pro')]);
+        add_settings_field('google_contacts_group', __('Contact Group', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_contacts_group', 'help' => __('Group name for ClassFlow customers (e.g., "ClassFlow Customers")', 'classflow-pro')]);
+        
+        // Connection Status
+        add_settings_field('google_connection_status', __('Connection Status', 'classflow-pro'), function() {
+            $token = get_option('cfp_google_token');
+            if ($token && !empty($token['access_token'])) {
+                echo '<span style="color:green;font-weight:bold;">✓ ' . esc_html__('Connected', 'classflow-pro') . '</span>';
+                echo ' <a href="' . esc_url(site_url('/wp-json/classflow/v1/google/disconnect')) . '" class="button button-small" onclick="return confirm(\'' . esc_js(__('Are you sure you want to disconnect?', 'classflow-pro')) . '\');">' . esc_html__('Disconnect', 'classflow-pro') . '</a>';
+            } else {
+                echo '<span style="color:red;">✗ ' . esc_html__('Not Connected', 'classflow-pro') . '</span>';
+                echo ' <a href="' . esc_url(site_url('/wp-json/classflow/v1/google/connect')) . '" class="button button-primary button-small">' . esc_html__('Connect to Google', 'classflow-pro') . '</a>';
+            }
+        }, 'classflow-pro', 'cfp_google');
     }
 
     public static function render_settings_page(): void
@@ -135,7 +218,7 @@ class Settings
             'notifications' => __('Notifications', 'classflow-pro'),
             'stripe' => __('Stripe', 'classflow-pro'),
             'quickbooks' => __('QuickBooks', 'classflow-pro'),
-            'google' => __('Google Calendar', 'classflow-pro'),
+            'google' => __('Google Workspace', 'classflow-pro'),
         ];
         $active = isset($_GET['tab']) ? sanitize_key((string)$_GET['tab']) : 'general';
         if (!isset($tabs[$active])) { $active = 'general'; }
@@ -205,6 +288,7 @@ class Settings
             'stripe_publishable_key','stripe_secret_key','stripe_webhook_secret','quickbooks_client_id','quickbooks_client_secret','quickbooks_realm_id','quickbooks_redirect_uri',
             'template_confirmed_subject','template_canceled_subject','template_rescheduled_subject',
             'google_client_id','google_client_secret','google_calendar_id','google_redirect_uri',
+            'gmail_sender_email','gmail_sender_name','google_drive_folder_id','google_contacts_group',
             'qb_item_prefix','qb_default_item_name','qb_income_account_ref','qb_tax_code_ref'
         ] as $k) {
             if (isset($output[$k])) {
@@ -236,6 +320,18 @@ class Settings
         $output['require_login_to_book'] = isset($output['require_login_to_book']) ? 1 : 0;
         $output['auto_create_user_on_booking'] = isset($output['auto_create_user_on_booking']) ? 1 : 0;
         $output['notify_instructor'] = isset($output['notify_instructor']) ? 1 : 0;
+        // Google Workspace checkboxes
+        $output['google_calendar_enabled'] = isset($output['google_calendar_enabled']) ? 1 : 0;
+        $output['google_calendar_sync_bookings'] = isset($output['google_calendar_sync_bookings']) ? 1 : 0;
+        $output['gmail_enabled'] = isset($output['gmail_enabled']) ? 1 : 0;
+        $output['gmail_track_opens'] = isset($output['gmail_track_opens']) ? 1 : 0;
+        $output['google_meet_enabled'] = isset($output['google_meet_enabled']) ? 1 : 0;
+        $output['google_meet_auto_create'] = isset($output['google_meet_auto_create']) ? 1 : 0;
+        $output['google_drive_enabled'] = isset($output['google_drive_enabled']) ? 1 : 0;
+        $output['google_drive_auto_export'] = isset($output['google_drive_auto_export']) ? 1 : 0;
+        $output['google_contacts_enabled'] = isset($output['google_contacts_enabled']) ? 1 : 0;
+        // Google Calendar color (1-11 or empty)
+        $output['google_calendar_color'] = isset($output['google_calendar_color']) ? sanitize_text_field($output['google_calendar_color']) : '';
         // Keep business_country empty if not provided to allow inference from Locations
         $bc = strtoupper(sanitize_text_field($output['business_country'] ?? ''));
         $output['business_country'] = preg_match('/^[A-Z]{2}$/', $bc) ? $bc : '';
