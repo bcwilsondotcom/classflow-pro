@@ -1533,11 +1533,22 @@ class Schedules
             $location_id
         )) ?: 'UTC';
         
-        // Convert local time to UTC
-        $start_local = new DateTime($schedule_date . ' ' . $start_time, new DateTimeZone($timezone));
-        $end_local = new DateTime($schedule_date . ' ' . $end_time, new DateTimeZone($timezone));
-        $start_local->setTimezone(new DateTimeZone('UTC'));
-        $end_local->setTimezone(new DateTimeZone('UTC'));
+        // Capture local time components and convert specific instances to UTC when needed
+        $localStartH = (int)substr($start_time, 0, 2);
+        $localStartM = (int)substr($start_time, 3, 2);
+        $localEndH = (int)substr($end_time, 0, 2);
+        $localEndM = (int)substr($end_time, 3, 2);
+        
+        // Helper to build UTC timestamps for a given local (location timezone) date
+        $buildUtcRange = function(string $dateStr) use ($timezone, $localStartH, $localStartM, $localEndH, $localEndM) {
+            $start = new DateTime($dateStr, new DateTimeZone($timezone));
+            $start->setTime($localStartH, $localStartM);
+            $end = new DateTime($dateStr, new DateTimeZone($timezone));
+            $end->setTime($localEndH, $localEndM);
+            $start->setTimezone(new DateTimeZone('UTC'));
+            $end->setTimezone(new DateTimeZone('UTC'));
+            return [$start, $end];
+        };
         
         // Price handling
         if (!empty($_POST['price_override'])) {
@@ -1557,54 +1568,47 @@ class Schedules
         if ($is_recurring) {
             $recurrence_type = sanitize_text_field($_POST['recurrence_type']);
             $recurrence_weeks = max(1, (int)$_POST['recurrence_weeks']);
-            $recurring_days = isset($_POST['recurring_days']) ? array_map('sanitize_text_field', $_POST['recurring_days']) : [];
-            
-            $current_date = new DateTime($schedule_date, new DateTimeZone($timezone));
-            $end_date = clone $current_date;
-            
+            $recurring_days = isset($_POST['recurring_days']) ? array_map('sanitize_text_field', (array)$_POST['recurring_days']) : [];
+            $current_date = new DateTime($schedule_date, new DateTimeZone($timezone)); // date only, in local tz
+
             if ($recurrence_type === 'daily') {
-                $end_date->modify('+' . $recurrence_weeks . ' days');
-                $interval = new DateInterval('P1D');
-            } elseif ($recurrence_type === 'weekly') {
-                $end_date->modify('+' . $recurrence_weeks . ' weeks');
-                $interval = new DateInterval('P1W');
-            } elseif ($recurrence_type === 'biweekly') {
-                $end_date->modify('+' . ($recurrence_weeks * 2) . ' weeks');
-                $interval = new DateInterval('P2W');
-            } else { // monthly
-                $end_date->modify('+' . $recurrence_weeks . ' months');
-                $interval = new DateInterval('P1M');
-            }
-            
-            $period = new DatePeriod($current_date, $interval, $end_date);
-            
-            foreach ($period as $date) {
-                // For weekly with specific days
-                if (($recurrence_type === 'weekly' || $recurrence_type === 'biweekly') && !empty($recurring_days)) {
-                    $day_name = strtolower($date->format('l'));
-                    if (!in_array($day_name, $recurring_days)) {
-                        continue;
+                // Interpret "weeks" field as days for daily recurrence (per UI)
+                for ($i = 0; $i < $recurrence_weeks; $i++) {
+                    $d = clone $current_date; $d->modify("+{$i} days");
+                    [$startUTC, $endUTC] = $buildUtcRange($d->format('Y-m-d'));
+                    $schedules_to_create[] = [ 'start' => $startUTC->format('Y-m-d H:i:s'), 'end' => $endUTC->format('Y-m-d H:i:s') ];
+                }
+            } elseif ($recurrence_type === 'weekly' || $recurrence_type === 'biweekly') {
+                // Map day names to ISO-8601 numbers (Mon=1..Sun=7)
+                $map = ['monday'=>1,'tuesday'=>2,'wednesday'=>3,'thursday'=>4,'friday'=>5,'saturday'=>6,'sunday'=>7];
+                $selected = array_values(array_unique(array_map(function($d) use($map){ return $map[$d] ?? null; }, $recurring_days)));
+                if (empty($selected)) {
+                    $selected = [(int)$current_date->format('N')];
+                }
+                sort($selected);
+                $stepWeeks = ($recurrence_type === 'biweekly') ? 2 : 1;
+                $iterations = ($recurrence_type === 'biweekly') ? (int)ceil($recurrence_weeks / 2) : $recurrence_weeks;
+                $anchorWeekday = (int)$current_date->format('N');
+                for ($w = 0; $w < $iterations; $w++) {
+                    $weekAnchor = clone $current_date; $weekAnchor->modify('+' . ($w * $stepWeeks) . ' weeks');
+                    foreach ($selected as $dayNum) {
+                        $offset = $dayNum - $anchorWeekday;
+                        $target = clone $weekAnchor; $target->modify(($offset >= 0 ? '+' : '') . $offset . ' days');
+                        [$startUTC, $endUTC] = $buildUtcRange($target->format('Y-m-d'));
+                        $schedules_to_create[] = [ 'start' => $startUTC->format('Y-m-d H:i:s'), 'end' => $endUTC->format('Y-m-d H:i:s') ];
                     }
                 }
-                
-                $schedule_start = clone $date;
-                $schedule_start->setTime((int)$start_local->format('H'), (int)$start_local->format('i'));
-                $schedule_end = clone $date;
-                $schedule_end->setTime((int)$end_local->format('H'), (int)$end_local->format('i'));
-                
-                $schedule_start->setTimezone(new DateTimeZone('UTC'));
-                $schedule_end->setTimezone(new DateTimeZone('UTC'));
-                
-                $schedules_to_create[] = [
-                    'start' => $schedule_start->format('Y-m-d H:i:s'),
-                    'end' => $schedule_end->format('Y-m-d H:i:s')
-                ];
+            } else { // monthly
+                for ($m = 0; $m < $recurrence_weeks; $m++) {
+                    $d = clone $current_date; $d->modify("+{$m} months");
+                    [$startUTC, $endUTC] = $buildUtcRange($d->format('Y-m-d'));
+                    $schedules_to_create[] = [ 'start' => $startUTC->format('Y-m-d H:i:s'), 'end' => $endUTC->format('Y-m-d H:i:s') ];
+                }
             }
         } else {
-            $schedules_to_create[] = [
-                'start' => $start_local->format('Y-m-d H:i:s'),
-                'end' => $end_local->format('Y-m-d H:i:s')
-            ];
+            // Single occurrence
+            [$startUTC, $endUTC] = $buildUtcRange($schedule_date);
+            $schedules_to_create[] = [ 'start' => $startUTC->format('Y-m-d H:i:s'), 'end' => $endUTC->format('Y-m-d H:i:s') ];
         }
         
         $created = 0;
