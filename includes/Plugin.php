@@ -51,6 +51,16 @@ class Plugin
 
         // Notifications: schedule reminders
         Reminders::register();
+
+        // Hide admin bar on frontend for Customer role
+        add_filter('show_admin_bar', function ($show) {
+            if (is_admin()) { return $show; }
+            $u = wp_get_current_user();
+            if ($u && is_array($u->roles) && in_array('customer', $u->roles, true)) {
+                return false;
+            }
+            return $show;
+        });
         
         // Google Workspace integrations
         $this->init_google_services();
@@ -110,6 +120,71 @@ class Plugin
                     }
                 });
             }
+        }
+        
+        // Zoom integration
+        if (Settings::get('zoom_enabled')) {
+            // Create Zoom meetings when bookings are confirmed
+            add_action('cfp_booking_confirmed', function($booking_id) {
+                if (class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                    global $wpdb;
+                    $btable = $wpdb->prefix . 'cfp_bookings';
+                    $booking = $wpdb->get_row($wpdb->prepare("SELECT * FROM $btable WHERE id = %d", $booking_id), ARRAY_A);
+                    
+                    if ($booking && $booking['schedule_id']) {
+                        // Create or update Zoom meeting for this schedule
+                        \ClassFlowPro\Zoom\ZoomService::create_meeting_for_schedule((int)$booking['schedule_id']);
+                        
+                        // Optionally add registrant to meeting
+                        if ($booking['customer_email']) {
+                            $meeting_id = get_post_meta((int)$booking['schedule_id'], '_cfp_zoom_meeting_id', true);
+                            if ($meeting_id) {
+                                $name_parts = explode(' ', $booking['customer_name'] ?: 'Guest', 2);
+                                \ClassFlowPro\Zoom\ZoomService::add_registrant(
+                                    $meeting_id,
+                                    $booking['customer_email'],
+                                    $name_parts[0],
+                                    $name_parts[1] ?? ''
+                                );
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Update Zoom meeting when schedule is updated
+            add_action('cfp_schedule_updated', function($schedule_id) {
+                if (class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                    $meeting_id = get_post_meta($schedule_id, '_cfp_zoom_meeting_id', true);
+                    if ($meeting_id) {
+                        global $wpdb;
+                        $stable = $wpdb->prefix . 'cfp_schedules';
+                        $schedule = $wpdb->get_row($wpdb->prepare("SELECT * FROM $stable WHERE id = %d", $schedule_id), ARRAY_A);
+                        
+                        if ($schedule) {
+                            $tz = \ClassFlowPro\Utils\Timezone::for_location(!empty($schedule['location_id']) ? (int)$schedule['location_id'] : null);
+                            $start_dt = new \DateTime($schedule['start_time'] . 'Z');
+                            $start_dt->setTimezone(new \DateTimeZone($tz));
+                            
+                            \ClassFlowPro\Zoom\ZoomService::update_meeting($meeting_id, [
+                                'start_time' => $start_dt->format('Y-m-d\TH:i:s'),
+                                'duration' => (int)$schedule['duration_minutes'] ?: 60,
+                                'timezone' => $tz,
+                            ]);
+                        }
+                    }
+                }
+            });
+            
+            // Delete Zoom meeting when schedule is deleted
+            add_action('cfp_schedule_deleted', function($schedule_id) {
+                if (class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                    $meeting_id = get_post_meta($schedule_id, '_cfp_zoom_meeting_id', true);
+                    if ($meeting_id) {
+                        \ClassFlowPro\Zoom\ZoomService::delete_meeting($meeting_id);
+                    }
+                }
+            });
         }
     }
 

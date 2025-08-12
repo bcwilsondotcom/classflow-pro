@@ -107,6 +107,39 @@ class Mailer
             'start_time' => $start,
             'amount' => $price,
         ]);
+        
+        // Add Zoom meeting information if available
+        if (class_exists('\ClassFlowPro\Zoom\ZoomService') && Settings::get('zoom_enabled')) {
+            $zoom_link = \ClassFlowPro\Zoom\ZoomService::get_meeting_link((int)$s['id']);
+            if ($zoom_link) {
+                $body .= '<hr><h3>' . __('Virtual Class Information', 'classflow-pro') . '</h3>';
+                $body .= '<p><strong>' . __('Join Zoom Meeting:', 'classflow-pro') . '</strong><br>';
+                $body .= '<a href="' . esc_url($zoom_link) . '">' . esc_html($zoom_link) . '</a></p>';
+                
+                $zoom_password = get_post_meta((int)$s['id'], '_cfp_zoom_password', true);
+                if ($zoom_password) {
+                    $body .= '<p><strong>' . __('Meeting Password:', 'classflow-pro') . '</strong> ' . esc_html($zoom_password) . '</p>';
+                }
+            }
+        }
+        
+        // Add Google Meet information if available
+        if (class_exists('\ClassFlowPro\Google\CalendarService') && Settings::get('google_meet_enabled')) {
+            $meet_link = \ClassFlowPro\Google\CalendarService::get_meet_link((int)$s['id']);
+            if ($meet_link) {
+                if (!strpos($body, 'Virtual Class Information')) {
+                    $body .= '<hr><h3>' . __('Virtual Class Information', 'classflow-pro') . '</h3>';
+                }
+                $body .= '<p><strong>' . __('Join Google Meet:', 'classflow-pro') . '</strong><br>';
+                $body .= '<a href="' . esc_url($meet_link) . '">' . esc_html($meet_link) . '</a></p>';
+            }
+        }
+        
+        // Add calendar sync information for customers
+        if (is_user_logged_in() && $b['user_id']) {
+            $body .= '<hr><p><small>' . __('Add your bookings to your calendar:', 'classflow-pro') . ' ';
+            $body .= '<a href="' . esc_url(rest_url('classflow/v1/ical/me_url')) . '">' . __('Get Calendar Link', 'classflow-pro') . '</a></small></p>';
+        }
 
         if (Settings::get('notify_customer', 1)) {
             $to = self::recipients($b['user_id'] ? (int)$b['user_id'] : null, $b['customer_email']);

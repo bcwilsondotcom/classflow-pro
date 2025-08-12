@@ -1,0 +1,690 @@
+/* ClassFlow Pro Admin Styles */
+
+/* General Admin Styling */
+.cfp-admin-wrap {
+    max-width: 1400px;
+    margin: 20px 20px 0 2px;
+}
+
+/* Modern Header */
+.cfp-admin-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.cfp-admin-header h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 600;
+    color: white;
+}
+
+.cfp-admin-header p {
+    margin: 10px 0 0;
+    opacity: 0.9;
+    font-size: 16px;
+}
+
+/* Stats Cards */
+.cfp-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.cfp-stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+}
+
+.cfp-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+
+.cfp-stat-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.cfp-stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+}
+
+.cfp-stat-change {
+    font-size: 14px;
+    margin-top: 8px;
+    color: #059669;
+}
+
+.cfp-stat-change.negative {
+    color: #dc2626;
+}
+
+/* Filters Bar */
+.cfp-filters-bar {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.cfp-filters-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.cfp-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.cfp-filter-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.cfp-filter-select,
+.cfp-filter-input {
+    padding: 8px 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+    background: white;
+}
+
+.cfp-filter-select:focus,
+.cfp-filter-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.cfp-filter-buttons {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.cfp-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cfp-btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.cfp-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.cfp-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.cfp-btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+/* Modern Table */
+.cfp-customers-table {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.cfp-customers-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.cfp-customers-table thead {
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.cfp-customers-table th {
+    padding: 16px 20px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.cfp-customers-table td {
+    padding: 20px;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 14px;
+    color: #1f2937;
+}
+
+.cfp-customers-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.cfp-customers-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Customer Info Cell */
+.cfp-customer-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.cfp-customer-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.cfp-customer-details h4 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.cfp-customer-details p {
+    margin: 0;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+/* Status Badges */
+.cfp-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 6px;
+}
+
+.cfp-badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.cfp-badge-warning {
+    background: #fed7aa;
+    color: #92400e;
+}
+
+.cfp-badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.cfp-badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.cfp-badge-neutral {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+/* Actions */
+.cfp-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.cfp-action-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid #e5e7eb;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.cfp-action-btn:hover {
+    background: #f9fafb;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+/* Customer Detail Page */
+.cfp-customer-detail {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 30px;
+}
+
+.cfp-main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.cfp-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Profile Card */
+.cfp-profile-card {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.cfp-profile-header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #f3f4f6;
+}
+
+.cfp-profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 32px;
+}
+
+.cfp-profile-info h2 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.cfp-profile-info p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.cfp-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.cfp-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cfp-form-group.full-width {
+    grid-column: span 2;
+}
+
+.cfp-form-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.cfp-form-input,
+.cfp-form-textarea {
+    padding: 10px 14px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.cfp-form-input:focus,
+.cfp-form-textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.cfp-form-textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+/* Credits Card */
+.cfp-credits-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 24px;
+    color: white;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+}
+
+.cfp-credits-card h3 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+}
+
+.cfp-credits-balance {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 20px;
+}
+
+.cfp-credits-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.cfp-credits-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.cfp-credits-btn:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.5);
+}
+
+/* Quick Stats */
+.cfp-quick-stats {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.cfp-quick-stats h3 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.cfp-stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.cfp-stat-item:last-child {
+    border-bottom: none;
+}
+
+.cfp-stat-item-label {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.cfp-stat-item-value {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 14px;
+}
+
+/* Tabs */
+.cfp-tabs {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.cfp-tab-nav {
+    display: flex;
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.cfp-tab-nav button {
+    flex: 1;
+    padding: 16px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.cfp-tab-nav button:hover {
+    color: #374151;
+    background: #f3f4f6;
+}
+
+.cfp-tab-nav button.active {
+    color: #667eea;
+    background: white;
+}
+
+.cfp-tab-nav button.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #667eea;
+}
+
+.cfp-tab-content {
+    padding: 24px;
+}
+
+/* Notes Section */
+.cfp-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.cfp-note-item {
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.cfp-note-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.cfp-note-content {
+    color: #1f2937;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Modal */
+.cfp-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999999;
+    align-items: center;
+    justify-content: center;
+}
+
+.cfp-modal-overlay.active {
+    display: flex;
+}
+
+.cfp-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.cfp-modal-header {
+    margin-bottom: 24px;
+}
+
+.cfp-modal-header h3 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.cfp-modal-body {
+    margin-bottom: 24px;
+}
+
+.cfp-modal-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+/* Pagination */
+.cfp-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 30px;
+}
+
+.cfp-pagination a,
+.cfp-pagination span {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.cfp-pagination a {
+    background: white;
+    border: 1px solid #e5e7eb;
+    color: #374151;
+}
+
+.cfp-pagination a:hover {
+    background: #f9fafb;
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.cfp-pagination .current {
+    background: #667eea;
+    color: white;
+    border: 1px solid #667eea;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .cfp-customer-detail {
+        grid-template-columns: 1fr;
+    }
+    
+    .cfp-form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .cfp-form-group.full-width {
+        grid-column: span 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .cfp-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .cfp-filters-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .cfp-filter-buttons {
+        margin-left: 0;
+        margin-top: 10px;
+    }
+}

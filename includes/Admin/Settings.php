@@ -32,7 +32,7 @@ class Settings
         add_submenu_page('classflow-pro', __('Logs', 'classflow-pro'), __('Logs', 'classflow-pro'), 'manage_options', 'classflow-pro-logs', ['ClassFlowPro\\Admin\\Logs', 'render']);
         add_submenu_page('classflow-pro', __('Reports', 'classflow-pro'), __('Reports', 'classflow-pro'), 'manage_options', 'classflow-pro-reports', ['ClassFlowPro\\Admin\\Reports', 'render']);
         add_submenu_page('classflow-pro', __('Payouts', 'classflow-pro'), __('Payouts', 'classflow-pro'), 'manage_options', 'classflow-pro-payouts', ['ClassFlowPro\\Admin\\Payouts', 'render']);
-        add_submenu_page('classflow-pro', __('Customer Notes', 'classflow-pro'), __('Customer Notes', 'classflow-pro'), 'manage_options', 'classflow-pro-notes', ['ClassFlowPro\\Admin\\CustomerNotes', 'render']);
+        add_submenu_page('classflow-pro', __('Customers', 'classflow-pro'), __('Customers', 'classflow-pro'), 'manage_options', 'classflow-pro-customers', ['ClassFlowPro\\Admin\\Customers', 'render']);
         add_submenu_page('classflow-pro', __('Intake Forms', 'classflow-pro'), __('Intake Forms', 'classflow-pro'), 'manage_options', 'classflow-pro-intake', ['ClassFlowPro\\Admin\\IntakeForms', 'render']);
     }
 
@@ -206,6 +206,68 @@ class Settings
                 echo ' <a href="' . esc_url(site_url('/wp-json/classflow/v1/google/connect')) . '" class="button button-primary button-small">' . esc_html__('Connect to Google', 'classflow-pro') . '</a>';
             }
         }, 'classflow-pro', 'cfp_google');
+        
+        // Zoom Integration Settings
+        add_settings_section('cfp_zoom', __('Zoom Integration', 'classflow-pro'), function () {
+            echo '<p>' . esc_html__('Connect ClassFlow Pro with Zoom to automatically create meetings for virtual classes.', 'classflow-pro') . '</p>';
+            echo '<div style="background:#f0f8ff;padding:10px;border-left:4px solid #0073aa;margin:10px 0;">';
+            echo '<strong>' . esc_html__('Setup Instructions:', 'classflow-pro') . '</strong><br>';
+            echo esc_html__('1. Go to Zoom App Marketplace → Build App → Server-to-Server OAuth', 'classflow-pro') . '<br>';
+            echo esc_html__('2. Create app with scopes: meeting:write, meeting:read, user:read', 'classflow-pro') . '<br>';
+            echo esc_html__('3. Copy Account ID, Client ID, and Client Secret', 'classflow-pro') . '<br>';
+            echo esc_html__('4. Enter credentials below and save', 'classflow-pro') . '<br>';
+            echo '</div>';
+        }, 'classflow-pro');
+        
+        add_settings_field('zoom_enabled', __('Enable Zoom Integration', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_enabled', 'help' => __('Automatically create Zoom meetings for virtual classes', 'classflow-pro')]);
+        add_settings_field('zoom_account_id', __('Account ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_account_id', 'help' => __('Your Zoom Account ID from Server-to-Server OAuth app', 'classflow-pro')]);
+        add_settings_field('zoom_client_id', __('Client ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_client_id', 'help' => __('OAuth Client ID from Zoom app', 'classflow-pro')]);
+        add_settings_field('zoom_client_secret', __('Client Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_client_secret', 'help' => __('OAuth Client Secret (keep private)', 'classflow-pro')]);
+        
+        add_settings_field('zoom_meeting_settings_heading', '', function() {
+            echo '<h3 style="margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:5px;">' . esc_html__('Meeting Settings', 'classflow-pro') . '</h3>';
+        }, 'classflow-pro', 'cfp_zoom');
+        
+        add_settings_field('zoom_auto_create', __('Auto-Create Meetings', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_auto_create', 'help' => __('Automatically create Zoom meetings when location is "Virtual" or "Online"', 'classflow-pro')]);
+        add_settings_field('zoom_join_before_minutes', __('Join Before Host (minutes)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_join_before_minutes', 'step' => '1', 'help' => __('Allow participants to join X minutes before host', 'classflow-pro')]);
+        add_settings_field('zoom_waiting_room', __('Enable Waiting Room', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_waiting_room', 'help' => __('Participants wait for host to admit them', 'classflow-pro')]);
+        add_settings_field('zoom_mute_on_entry', __('Mute on Entry', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_mute_on_entry', 'help' => __('Mute participants when they join', 'classflow-pro')]);
+        add_settings_field('zoom_auto_recording', __('Auto Recording', 'classflow-pro'), [self::class, 'field_select'], 'classflow-pro', 'cfp_zoom', ['key' => 'zoom_auto_recording', 'choices' => [
+            'none' => __('No Recording', 'classflow-pro'),
+            'local' => __('Local Recording', 'classflow-pro'),
+            'cloud' => __('Cloud Recording', 'classflow-pro'),
+        ], 'help' => __('Automatically record meetings', 'classflow-pro')]);
+        
+        add_settings_field('zoom_connection_status', __('Connection Status', 'classflow-pro'), function() {
+            $account_id = Settings::get('zoom_account_id');
+            $client_id = Settings::get('zoom_client_id');
+            $client_secret = Settings::get('zoom_client_secret');
+            
+            if ($account_id && $client_id && $client_secret) {
+                echo '<span style="color:green;font-weight:bold;">✓ ' . esc_html__('Configured', 'classflow-pro') . '</span>';
+                echo ' <button type="button" class="button button-small" onclick="testZoomConnection();">' . esc_html__('Test Connection', 'classflow-pro') . '</button>';
+                echo '<div id="zoom-test-result" style="margin-top:10px;"></div>';
+                echo '<script>
+                function testZoomConnection() {
+                    jQuery("#zoom-test-result").html("<span style=\"color:#666;\">Testing...</span>");
+                    jQuery.get("' . esc_url(rest_url('classflow/v1/zoom/test')) . '", {
+                        _wpnonce: "' . wp_create_nonce('wp_rest') . '"
+                    }).done(function(data) {
+                        if (data.success) {
+                            jQuery("#zoom-test-result").html("<span style=\"color:green;\">✓ " + data.message + "</span>");
+                        } else {
+                            jQuery("#zoom-test-result").html("<span style=\"color:red;\">✗ " + data.message + "</span>");
+                        }
+                    }).fail(function() {
+                        jQuery("#zoom-test-result").html("<span style=\"color:red;\">✗ Connection test failed</span>");
+                    });
+                }
+                </script>';
+            } else {
+                echo '<span style="color:orange;">⚠ ' . esc_html__('Not Configured', 'classflow-pro') . '</span>';
+                echo '<p class="description">' . esc_html__('Please enter your Zoom credentials above.', 'classflow-pro') . '</p>';
+            }
+        }, 'classflow-pro', 'cfp_zoom');
     }
 
     public static function render_settings_page(): void
@@ -219,6 +281,7 @@ class Settings
             'stripe' => __('Stripe', 'classflow-pro'),
             'quickbooks' => __('QuickBooks', 'classflow-pro'),
             'google' => __('Google Workspace', 'classflow-pro'),
+            'zoom' => __('Zoom', 'classflow-pro'),
         ];
         $active = isset($_GET['tab']) ? sanitize_key((string)$_GET['tab']) : 'general';
         if (!isset($tabs[$active])) { $active = 'general'; }
@@ -260,6 +323,7 @@ class Settings
             'stripe' => ['cfp_stripe'],
             'quickbooks' => ['cfp_quickbooks'],
             'google' => ['cfp_google'],
+            'zoom' => ['cfp_zoom'],
         ];
         if (empty($map[$tab])) return;
         global $wp_settings_sections, $wp_settings_fields;
@@ -289,6 +353,7 @@ class Settings
             'template_confirmed_subject','template_canceled_subject','template_rescheduled_subject',
             'google_client_id','google_client_secret','google_calendar_id','google_redirect_uri',
             'gmail_sender_email','gmail_sender_name','google_drive_folder_id','google_contacts_group',
+            'zoom_account_id','zoom_client_id','zoom_client_secret',
             'qb_item_prefix','qb_default_item_name','qb_income_account_ref','qb_tax_code_ref'
         ] as $k) {
             if (isset($output[$k])) {
@@ -332,6 +397,13 @@ class Settings
         $output['google_contacts_enabled'] = isset($output['google_contacts_enabled']) ? 1 : 0;
         // Google Calendar color (1-11 or empty)
         $output['google_calendar_color'] = isset($output['google_calendar_color']) ? sanitize_text_field($output['google_calendar_color']) : '';
+        // Zoom settings
+        $output['zoom_enabled'] = isset($output['zoom_enabled']) ? 1 : 0;
+        $output['zoom_auto_create'] = isset($output['zoom_auto_create']) ? 1 : 0;
+        $output['zoom_waiting_room'] = isset($output['zoom_waiting_room']) ? 1 : 0;
+        $output['zoom_mute_on_entry'] = isset($output['zoom_mute_on_entry']) ? 1 : 0;
+        $output['zoom_join_before_minutes'] = isset($output['zoom_join_before_minutes']) ? max(0, intval($output['zoom_join_before_minutes'])) : 5;
+        $output['zoom_auto_recording'] = in_array(($output['zoom_auto_recording'] ?? 'none'), ['none','local','cloud'], true) ? $output['zoom_auto_recording'] : 'none';
         // Keep business_country empty if not provided to allow inference from Locations
         $bc = strtoupper(sanitize_text_field($output['business_country'] ?? ''));
         $output['business_country'] = preg_match('/^[A-Z]{2}$/', $bc) ? $bc : '';

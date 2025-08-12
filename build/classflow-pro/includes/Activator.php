@@ -395,6 +395,13 @@ class Activator
         } catch (\Throwable $e) {}
 
 
+        // Ensure custom Customer role exists
+        if (!get_role('customer')) {
+            add_role('customer', __('Customer', 'classflow-pro'), [
+                'read' => true,
+            ]);
+        }
+
         // Default options
         add_option('cfp_settings', [
             'currency' => 'usd',

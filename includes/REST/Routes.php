@@ -293,6 +293,65 @@ class Routes
             },
             'permission_callback' => '__return_true',
         ]);
+        
+        // Zoom integration endpoints
+        register_rest_route('classflow/v1', '/zoom/test', [
+            'methods' => 'GET',
+            'callback' => function() {
+                if (!class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                    return new WP_Error('zoom_not_available', 'Zoom integration not available');
+                }
+                $result = \ClassFlowPro\Zoom\ZoomService::test_connection();
+                return rest_ensure_response($result);
+            },
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
+        
+        register_rest_route('classflow/v1', '/zoom/meeting/(?P<id>[^/]+)', [
+            'methods' => 'GET',
+            'callback' => function(WP_REST_Request $request) {
+                if (!class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                    return new WP_Error('zoom_not_available', 'Zoom integration not available');
+                }
+                $meeting_id = $request->get_param('id');
+                $meeting = \ClassFlowPro\Zoom\ZoomService::get_meeting($meeting_id);
+                if (!$meeting) {
+                    return new WP_Error('meeting_not_found', 'Meeting not found');
+                }
+                return rest_ensure_response($meeting);
+            },
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
+        
+        register_rest_route('classflow/v1', '/zoom/create-meeting', [
+            'methods' => 'POST',
+            'callback' => function(WP_REST_Request $request) {
+                if (!class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                    return new WP_Error('zoom_not_available', 'Zoom integration not available');
+                }
+                
+                $data = $request->get_json_params();
+                $params = [
+                    'topic' => sanitize_text_field($data['topic'] ?? 'ClassFlow Pro Meeting'),
+                    'start_time' => sanitize_text_field($data['start_time'] ?? ''),
+                    'duration' => intval($data['duration'] ?? 60),
+                    'timezone' => sanitize_text_field($data['timezone'] ?? 'UTC'),
+                    'agenda' => sanitize_textarea_field($data['agenda'] ?? ''),
+                ];
+                
+                if (!$params['start_time']) {
+                    return new WP_Error('invalid_params', 'Start time is required');
+                }
+                
+                $meeting = \ClassFlowPro\Zoom\ZoomService::create_meeting($params);
+                if (!$meeting) {
+                    return new WP_Error('creation_failed', 'Failed to create Zoom meeting');
+                }
+                
+                return rest_ensure_response($meeting);
+            },
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+        ]);
 
         // Client portal endpoints (auth required)
         register_rest_route('classflow/v1', '/me/overview', [
@@ -503,6 +562,10 @@ class Routes
                 $uid = wp_create_user($username, $pass, $customer['email']);
                 if (!is_wp_error($uid)) {
                     $customer['user_id'] = (int)$uid;
+                    // Assign Customer role and hide admin bar
+                    $wpuser = new \WP_User($uid);
+                    $wpuser->set_role('customer');
+                    update_user_meta($uid, 'show_admin_bar_front', 'false');
                     if (!empty($customer['name'])) {
                         wp_update_user(['ID' => $uid, 'display_name' => $customer['name']]);
                     }
@@ -814,6 +877,10 @@ class Routes
         if (username_exists($username)) { $username .= '_' . wp_generate_password(4, false, false); }
         $user_id = wp_create_user($username, $password, $email);
         if (is_wp_error($user_id)) return $user_id;
+        // Assign custom Customer role and hide admin bar on front-end
+        $wpuser = new \WP_User($user_id);
+        $wpuser->set_role('customer');
+        update_user_meta($user_id, 'show_admin_bar_front', 'false');
         if ($name) { wp_update_user(['ID' => $user_id, 'display_name' => $name]); }
         // Auto sign in
         $user = wp_signon([ 'user_login' => $username, 'user_password' => $password, 'remember' => true ], false);
@@ -1095,19 +1162,48 @@ class Routes
         }
         $bk = $wpdb->prefix . 'cfp_bookings';
         $sc = $wpdb->prefix . 'cfp_schedules';
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT b.*, s.class_id, s.location_id, s.start_time, s.end_time FROM $bk b JOIN $sc s ON s.id=b.schedule_id WHERE b.user_id = %d AND b.status IN ('pending','confirmed') ORDER BY s.start_time ASC LIMIT 1000", $user_id), ARRAY_A);
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT b.*, s.class_id, s.location_id, s.start_time, s.end_time, s.id as schedule_id FROM $bk b JOIN $sc s ON s.id=b.schedule_id WHERE b.user_id = %d AND b.status IN ('pending','confirmed') ORDER BY s.start_time ASC LIMIT 1000", $user_id), ARRAY_A);
         $events = [];
         foreach ($rows as $r) {
             $class_title = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']);
             $loc = !empty($r['location_id']) ? get_the_title((int)$r['location_id']) : '';
+            
+            // Build description with Zoom link if available
+            $description = '';
+            
+            // Check for Zoom meeting
+            if (class_exists('\ClassFlowPro\Zoom\ZoomService')) {
+                $zoom_link = \ClassFlowPro\Zoom\ZoomService::get_meeting_link((int)$r['schedule_id']);
+                if ($zoom_link) {
+                    $description .= "Join Zoom Meeting: " . $zoom_link . "\n";
+                    $zoom_password = get_post_meta((int)$r['schedule_id'], '_cfp_zoom_password', true);
+                    if ($zoom_password) {
+                        $description .= "Meeting Password: " . $zoom_password . "\n";
+                    }
+                    $description .= "\n";
+                }
+            }
+            
+            // Check for Google Meet link
+            if (class_exists('\ClassFlowPro\Google\CalendarService')) {
+                $meet_link = \ClassFlowPro\Google\CalendarService::get_meet_link((int)$r['schedule_id']);
+                if ($meet_link) {
+                    $description .= "Join Google Meet: " . $meet_link . "\n\n";
+                }
+            }
+            
+            if ($loc) {
+                $description .= "Location: " . $loc;
+            }
+            
             $events[] = [
                 'uid' => 'cfp-booking-' . $r['id'] . '@' . parse_url(home_url(), PHP_URL_HOST),
                 'start' => $r['start_time'],
                 'end' => $r['end_time'],
                 'summary' => $class_title,
-                'description' => '',
+                'description' => trim($description),
                 'location' => $loc,
-                'url' => home_url('/'),
+                'url' => $zoom_link ?? home_url('/'),
             ];
         }
         $ics = \ClassFlowPro\Calendar\Ical::build($events);
