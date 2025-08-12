@@ -78,9 +78,7 @@ class Dashboard
 
     private static function format_money(int $amount_cents, ?string $currency = null): string
     {
-        $currency = $currency ?: Settings::get('currency', 'usd');
         $amount = $amount_cents / 100;
-        $symbol = strtoupper($currency);
-        return number_format_i18n($amount, 2) . ' ' . esc_html($symbol);
+        return number_format_i18n($amount, 2) . ' USD';
     }
 }

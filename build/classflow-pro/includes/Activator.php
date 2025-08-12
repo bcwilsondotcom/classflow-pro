@@ -307,6 +307,8 @@ class Activator
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'queued'"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN notified_at DATETIME NULL"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_waitlist ADD COLUMN expires_at DATETIME NULL"); } catch (\Throwable $e) {}
+        // Class color support
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_classes ADD COLUMN color_hex VARCHAR(7) NULL"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_instructors ADD UNIQUE INDEX uniq_instructors_email (email)"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_private_requests ADD INDEX idx_private_requests_instr_status (instructor_id, status)"); } catch (\Throwable $e) {}
 

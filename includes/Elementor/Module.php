@@ -12,6 +12,8 @@ class Module
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\ClientPortalWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\IntakeFormWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\CalendarBookingWidget());
+        \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\SmallCalendarBookingWidget());
+        \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\BookingFunnelWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\StepBookingWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\CheckoutSuccessWidget());
         \Elementor\Plugin::instance()->widgets_manager->register(new Widgets\WaitlistResponseWidget());

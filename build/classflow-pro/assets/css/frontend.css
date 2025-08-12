@@ -91,7 +91,7 @@
 
 .cfp-full-cal-body {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 420px;
   gap: 0;
   flex: 1;
   background: white;
@@ -104,57 +104,532 @@
 }
 
 .cfp-full-cal-sidebar {
-  background: white;
+  background: linear-gradient(to bottom, #ffffff, #fafbfc);
   border-left: 1px solid #e5e7eb;
-  padding: 24px;
+  padding: 0;
   overflow-y: auto;
-  box-shadow: -2px 0 4px 0 rgb(0 0 0 / 0.05);
+  box-shadow: -4px 0 12px 0 rgb(0 0 0 / 0.08);
 }
 
-.cfp-sidebar-card {
+/* Step Indicator */
+.cfp-booking-steps {
+  display: flex;
+  align-items: center;
+  padding: 24px 24px 20px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cfp-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+.cfp-step-indicator.active {
+  opacity: 1;
+}
+
+.cfp-step-indicator.completed {
+  opacity: 0.8;
+}
+
+.cfp-step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.cfp-step-indicator.active .cfp-step-number {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.cfp-step-indicator.completed .cfp-step-number {
+  background: #10b981;
+  color: white;
+}
+
+.cfp-step-label {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cfp-step-indicator.active .cfp-step-label {
+  color: #111827;
+  font-weight: 600;
+}
+
+.cfp-step-connector {
+  flex: 1;
+  height: 2px;
+  background: #e5e7eb;
+  margin: 0 8px;
+}
+
+/* Sidebar Sections */
+.cfp-sidebar-section {
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cfp-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.cfp-section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.025em;
+}
+
+.cfp-selected-count {
+  font-size: 13px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* Empty Selection State */
+.cfp-empty-selection {
+  text-align: center;
+  padding: 32px 16px;
+  color: #9ca3af;
+}
+
+.cfp-empty-selection svg {
+  color: #e5e7eb;
+  margin: 0 auto 12px;
+}
+
+.cfp-empty-selection p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Selected Classes Display */
+.cfp-cal-selected {
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 20px;
+  min-height: 120px;
+  padding: 0;
+}
+
+.cfp-cal-selected > div:not(.cfp-empty-selection) {
+  padding: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cfp-cal-selected > div:last-child {
+  border-bottom: none;
+}
+
+/* Form Styling */
+.cfp-booking-form {
+  margin-top: 0;
+}
+
+.cfp-form-group {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.cfp-form-group:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
   margin-bottom: 20px;
 }
 
-.cfp-sidebar-card h3 {
-  margin: 0 0 16px 0;
-  font-size: 18px;
+.cfp-form-group-title {
+  font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 16px 0;
 }
 
-.cfp-booking-form label {
+.cfp-input-wrapper {
+  margin-bottom: 16px;
+}
+
+.cfp-input-wrapper label {
   display: block;
-  margin-bottom: 12px;
   font-size: 14px;
-  color: #374151;
   font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.cfp-optional {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 400;
 }
 
 .cfp-booking-form input[type="text"],
 .cfp-booking-form input[type="email"],
-.cfp-booking-form input[type="tel"] {
+.cfp-booking-form input[type="tel"],
+.cfp-booking-form input[type="password"] {
   width: 100%;
-  padding: 8px 12px;
-  margin-top: 4px;
+  padding: 10px 14px;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
+  transition: all 0.2s;
+  background: white;
+}
+
+.cfp-booking-form input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: white;
+}
+
+.cfp-booking-form input::placeholder {
+  color: #9ca3af;
+}
+
+.cfp-help-text {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Checkbox Styling */
+.cfp-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cfp-styled-checkbox {
+  display: flex !important;
+  align-items: flex-start;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
   transition: all 0.2s;
 }
 
-.cfp-checkbox-label {
-  display: flex !important;
-  align-items: center;
-  font-weight: normal !important;
-  cursor: pointer;
+.cfp-styled-checkbox:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
-.cfp-checkbox-label input {
-  margin-right: 8px;
+.cfp-styled-checkbox input[type="checkbox"] {
+  display: none;
+}
+
+.cfp-checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.2s;
+  background: white;
+}
+
+.cfp-styled-checkbox input:checked ~ .cfp-checkbox-custom {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+}
+
+.cfp-styled-checkbox input:checked ~ .cfp-checkbox-custom::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.cfp-checkbox-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.cfp-checkbox-text strong {
+  display: block;
+  font-size: 14px;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.cfp-checkbox-text small {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* Payment Options Section */
+.cfp-payment-options-group {
+  background: #f9fafb;
+  margin: -24px -24px 0;
+  padding: 24px;
+  border-radius: 0 0 8px 8px;
+}
+
+.cfp-credits-section {
+  margin-bottom: 16px;
+}
+
+.cfp-package-upsell {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.cfp-upsell-badge {
+  position: absolute;
+  top: -10px;
+  right: 16px;
+  background: #ef4444;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cfp-package-upsell h5 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.cfp-package-upsell p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #78350f;
+  line-height: 1.4;
+}
+
+.cfp-view-packages {
+  background: white;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cfp-view-packages:hover {
+  background: #fef3c7;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+
+.cfp-credits-available {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border-color: #86efac !important;
+}
+
+.cfp-credits-available .cfp-checkbox-text strong {
+  color: #14532d;
+}
+
+.cfp-credits-balance {
+  color: #166534;
+  font-weight: 600;
+}
+
+.cfp-credit-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.cfp-credits-info {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-left: 3px solid #10b981;
+  border-radius: 4px;
+}
+
+.cfp-credits-info p {
+  margin: 0;
+  font-size: 13px;
+  color: #14532d;
+}
+
+.cfp-credits-coverage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cfp-pay-option {
+  margin-top: 12px;
+}
+
+.cfp-notifications-section {
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Action Buttons */
+.cfp-form-actions {
+  margin-top: 24px;
+}
+
+.cfp-book-primary {
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px 0 rgba(102, 126, 234, 0.3);
+}
+
+.cfp-book-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.4);
+}
+
+.cfp-book-primary:active {
+  transform: translateY(0);
+}
+
+.cfp-button-icon {
+  transition: transform 0.3s ease;
+}
+
+.cfp-book-primary:hover .cfp-button-icon {
+  transform: translateX(2px);
+}
+
+/* Payment Section */
+.cfp-payment {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cfp-payment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.cfp-payment-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.cfp-payment-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: #10b981;
+}
+
+.cfp-card-element {
+  padding: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  min-height: 48px;
+  margin-bottom: 16px;
+}
+
+.cfp-pay-button {
+  width: 100%;
+  padding: 14px 20px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.cfp-pay-button:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px 0 rgba(16, 185, 129, 0.3);
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 1280px) {
+  .cfp-full-cal-body {
+    grid-template-columns: 1fr 380px;
+  }
+  
+  .cfp-full-cal-sidebar {
+    padding: 0;
+  }
+  
+  .cfp-sidebar-section {
+    padding: 20px;
+  }
+  
+  .cfp-booking-steps {
+    padding: 20px;
+  }
 }
 
 @media (max-width: 1024px) {
@@ -164,7 +639,59 @@
   
   .cfp-full-cal-sidebar {
     border-left: none;
-    border-top: 1px solid #e5e7eb;
+    border-top: 2px solid #e5e7eb;
+    box-shadow: none;
+    background: white;
+  }
+  
+  .cfp-booking-steps {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .cfp-step-label {
+    display: none;
+  }
+  
+  .cfp-step-connector {
+    display: none;
+  }
+  
+  .cfp-step-indicator {
+    margin: 0 4px;
+  }
+}
+
+@media (max-width: 640px) {
+  .cfp-full-cal-header {
+    padding: 16px;
+  }
+  
+  .cfp-full-cal-nav h2 {
+    font-size: 20px;
+    min-width: 150px;
+  }
+  
+  .cfp-full-cal-main {
+    padding: 16px;
+  }
+  
+  .cfp-cal-cell {
+    min-height: 80px;
+  }
+  
+  .cfp-cal-event {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+  
+  .cfp-sidebar-section {
+    padding: 16px;
+  }
+  
+  .cfp-form-group {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
   }
 }
 
@@ -402,9 +929,7 @@
   border-radius: 8px;
   margin-bottom: 20px;
   min-height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block; /* stack children vertically */
 }
 
 .cfp-cal-selected:empty::before {
@@ -414,9 +939,11 @@
   text-align: center;
 }
 
-.cfp-cal-selected > div {
-  width: 100%;
-}
+.cfp-cal-selected > div { width: 100%; }
+
+/* Selected list/pills */
+.cfp-selected-list { display: flex; flex-direction: column; gap: 8px; }
+.cfp-selected-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 .cfp-cal-selected strong {
   color: #111827;
@@ -487,6 +1014,29 @@
   transform: translateY(0);
 }
 
+/* Login/Auth notices */
+.cfp-login-notice {
+  background: #f3f4f6;
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid #e5e7eb;
+}
+
+.cfp-user-welcome {
+  background: #eff6ff;
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  color: #1e40af;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid #bfdbfe;
+}
+
 /* Payment Section */
 .cfp-payment {
   margin-top: 20px;
@@ -541,6 +1091,10 @@
 .cfp-agenda-item:hover {
   background: #f3f4f6;
   border-color: #9ca3af;
+}
+.cfp-agenda-item.selected {
+  background: #eef2ff;
+  border-color: #6366f1;
 }
 
 .cfp-agenda-item span {

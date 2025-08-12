@@ -28,11 +28,11 @@
     const phone = ($root.find('.cfp-phone').val()||'').toString();
     const password = ($root.find('.cfp-password').val()||'').toString();
     const sms_opt_in = $root.find('.cfp-sms-optin').is(':checked');
-    const coupon = ($root.find('.cfp-coupon').val()||'').toString();
+    
     const useCredits = $root.find('.cfp-use-credits').is(':checked');
     const $msg = $root.find('.cfp-msg').empty();
     if (!scheduleId) { $msg.text('Please choose a time.'); return null; }
-    const res = await fetch(CFP_DATA.restUrl + 'book', { method:'POST', headers: headers($root), body: JSON.stringify({ schedule_id: scheduleId, name, email, phone, password, sms_opt_in, use_credits: useCredits, coupon_code: coupon })});
+    const res = await fetch(CFP_DATA.restUrl + 'book', { method:'POST', headers: headers($root), body: JSON.stringify({ schedule_id: scheduleId, name, email, phone, password, sms_opt_in, use_credits: useCredits })});
     const data = await res.json();
     if (!res.ok) { $msg.text(data.message || 'Booking failed'); return null; }
     $root.data('intakeRequired', !!data.intake_required);

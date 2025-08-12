@@ -48,7 +48,7 @@ class Reports
         echo '</form>';
 
         echo '<h2>' . esc_html__('Revenue', 'classflow-pro') . '</h2>';
-        echo '<p><strong>' . esc_html(number_format_i18n($net_cents/100, 2)) . '</strong> ' . esc_html(strtoupper(Settings::get('currency','usd'))) . ' (gross ' . esc_html(number_format_i18n($revenue_cents/100,2)) . ', refunds ' . esc_html(number_format_i18n($refunds_cents/100,2)) . ')</p>';
+        echo '<p><strong>' . esc_html(number_format_i18n($net_cents/100, 2)) . '</strong> USD (gross ' . esc_html(number_format_i18n($revenue_cents/100,2)) . ', refunds ' . esc_html(number_format_i18n($refunds_cents/100,2)) . ')</p>';
 
         echo '<h2>' . esc_html__('Occupancy', 'classflow-pro') . '</h2>';
         echo '<table class="widefat striped"><thead><tr><th>Schedule</th><th>Start</th><th>Capacity</th><th>Booked</th><th>Fill %</th></tr></thead><tbody>';

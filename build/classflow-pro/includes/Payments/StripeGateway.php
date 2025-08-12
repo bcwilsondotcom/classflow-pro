@@ -77,7 +77,8 @@ class StripeGateway
             'amount' => $amount_cents,
             'currency' => $currency,
             'description' => $description,
-            'automatic_payment_methods[enabled]' => 'true',
+            // Ensure broad compatibility with older Stripe API versions
+            'payment_method_types[]' => 'card',
             'metadata' => $metadata,
         ];
         if (Settings::get('stripe_enable_tax', 1)) {
@@ -161,15 +162,13 @@ class StripeGateway
                     ],
                 ],
             ],
-            'automatic_payment_methods[enabled]' => 'true',
             'metadata[booking_id]' => (string)$booking_id,
         ];
         if (Settings::get('stripe_enable_tax', 1)) {
             $params['automatic_tax[enabled]'] = 'true';
         }
-        if (Settings::get('stripe_allow_promo_codes', 0)) {
-            $params['allow_promotion_codes'] = 'true';
-        }
+        // Always allow promotion codes on Checkout
+        $params['allow_promotion_codes'] = 'true';
 
         // Stripe Connect split handled via payment_intent_data
         if (Settings::get('stripe_connect_enabled', 0) && $instructor_id) {
@@ -194,6 +193,47 @@ class StripeGateway
             $params['payment_intent_data[metadata][booking_id]'] = (string)$booking_id;
         }
 
+        $session = self::api_request('POST', '/checkout/sessions', $params);
+        if (is_wp_error($session)) return $session;
+        return [ 'id' => $session['id'], 'url' => $session['url'] ];
+    }
+
+    public static function create_checkout_session_multi(array $args)
+    {
+        // args: line_items: [ ['amount_cents'=>, 'currency'=>, 'name'=>, 'description'=>], ... ], success_url, cancel_url, booking_ids: array<int>
+        $line_items = $args['line_items'] ?? [];
+        $success_url = $args['success_url'];
+        $cancel_url = $args['cancel_url'];
+        $booking_ids = array_map('intval', $args['booking_ids'] ?? []);
+        $currency = $line_items && !empty($line_items[0]['currency']) ? $line_items[0]['currency'] : 'usd';
+
+        $items = [];
+        foreach ($line_items as $li) {
+            $items[] = [
+                'quantity' => 1,
+                'price_data' => [
+                    'currency' => $li['currency'] ?? $currency,
+                    'unit_amount' => (int)$li['amount_cents'],
+                    'product_data' => [
+                        'name' => $li['name'] ?? 'Class',
+                        'description' => $li['description'] ?? '',
+                    ],
+                ],
+            ];
+        }
+        $params = [
+            'mode' => 'payment',
+            'success_url' => $success_url,
+            'cancel_url' => $cancel_url,
+            'line_items' => $items,
+            'allow_promotion_codes' => 'true',
+        ];
+        if (Settings::get('stripe_enable_tax', 1)) {
+            $params['automatic_tax[enabled]'] = 'true';
+        }
+        if (!empty($booking_ids)) {
+            $params['payment_intent_data[metadata][booking_ids]'] = implode(',', $booking_ids);
+        }
         $session = self::api_request('POST', '/checkout/sessions', $params);
         if (is_wp_error($session)) return $session;
         return [ 'id' => $session['id'], 'url' => $session['url'] ];

@@ -904,7 +904,7 @@ class Schedules
                                             <?php selected($preset_class_id, $class['id']); ?>>
                                         <?php echo esc_html($class['name']); ?>
                                         (<?php echo esc_html($class['duration_mins']); ?> min, 
-                                        <?php echo esc_html(number_format($class['price_cents']/100, 2)); ?> <?php echo esc_html(strtoupper($class['currency'])); ?>)
+                                        <?php echo esc_html(number_format($class['price_cents']/100, 2)); ?> USD)
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -1087,13 +1087,7 @@ class Schedules
                         <td>
                             <input type="number" name="price_override" id="price_override" min="0" step="0.01" class="small-text"
                                    placeholder="<?php esc_attr_e('Use class default', 'classflow-pro'); ?>"/>
-                            <select name="currency" id="currency" style="width:80px;">
-                                <option value="usd">USD</option>
-                                <option value="eur">EUR</option>
-                                <option value="gbp">GBP</option>
-                                <option value="aud">AUD</option>
-                                <option value="cad">CAD</option>
-                            </select>
+                            <span><?php esc_html_e('USD', 'classflow-pro'); ?></span>
                             <p class="description">
                                 <?php esc_html_e('Leave empty to use class default price', 'classflow-pro'); ?>
                                 <span id="default-price-display"></span>
@@ -1141,12 +1135,11 @@ class Schedules
                 var duration = $selected.data('duration');
                 var capacity = $selected.data('capacity');
                 var price = $selected.data('price');
-                var currency = $selected.data('currency');
+                var currency = 'usd';
                 var location = $selected.data('location');
                 
                 $('#capacity').val(capacity);
-                $('#currency').val(currency);
-                $('#default-price-display').text(' (Default: ' + (price/100).toFixed(2) + ' ' + currency.toUpperCase() + ')');
+                $('#default-price-display').text(' (Default: ' + (price/100).toFixed(2) + ' USD)');
                 
                 if (location && !$('#location_id').val()) {
                     $('#location_id').val(location).trigger('change');
@@ -1488,7 +1481,7 @@ class Schedules
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php echo esc_html(number_format($schedule['price_cents']/100, 2) . ' ' . strtoupper($schedule['currency'])); ?>
+                                <?php echo esc_html(number_format($schedule['price_cents']/100, 2)); ?> USD
                             </td>
                             <td>
                                 <a href="<?php echo esc_url(admin_url('admin.php?page=classflow-pro-bookings&schedule_id=' . $schedule['id'])); ?>" 
@@ -1549,16 +1542,15 @@ class Schedules
         // Price handling
         if (!empty($_POST['price_override'])) {
             $price_cents = (int)(floatval($_POST['price_override']) * 100);
-            $currency = sanitize_text_field($_POST['currency']);
         } else {
             // Get from class
             $class = $wpdb->get_row($wpdb->prepare(
-                "SELECT price_cents, currency FROM {$wpdb->prefix}cfp_classes WHERE id = %d",
+                "SELECT price_cents FROM {$wpdb->prefix}cfp_classes WHERE id = %d",
                 $class_id
             ), ARRAY_A);
             $price_cents = (int)$class['price_cents'];
-            $currency = $class['currency'];
         }
+        $currency = 'usd';
         
         $schedules_to_create = [];
         

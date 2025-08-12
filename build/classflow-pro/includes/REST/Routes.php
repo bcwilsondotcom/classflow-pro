@@ -92,6 +92,13 @@ class Routes
                 return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
             },
         ]);
+        register_rest_route('classflow/v1', '/book_bulk', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'book_bulk'],
+            'permission_callback' => function () {
+                return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
+            },
+        ]);
 
         // Auth helpers for modal login/register
         register_rest_route('classflow/v1', '/login', [
@@ -283,6 +290,7 @@ class Routes
         $rows = $wpdb->get_results($prepared, ARRAY_A);
         foreach ($rows as &$row) {
             $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+            $row['class_color'] = \ClassFlowPro\Utils\Entities::class_color((int)$row['class_id']);
             $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
             $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
@@ -329,6 +337,7 @@ class Routes
             }
             unset($row['class_price_cents'], $row['class_currency']);
             $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
+            $row['class_color'] = \ClassFlowPro\Utils\Entities::class_color((int)$row['class_id']);
             $row['instructor_name'] = $row['instructor_id'] ? \ClassFlowPro\Utils\Entities::instructor_name((int)$row['instructor_id']) : '';
             $row['location_name'] = $row['location_id'] ? \ClassFlowPro\Utils\Entities::location_name((int)$row['location_id']) : '';
             $row['tz'] = \ClassFlowPro\Utils\Timezone::for_schedule_row($row);
@@ -390,7 +399,7 @@ class Routes
             'user_id' => get_current_user_id() ?: null,
             'email' => sanitize_email($data['email'] ?? ''),
             'name' => sanitize_text_field($data['name'] ?? ''),
-            'coupon_code' => isset($data['coupon_code']) ? sanitize_text_field($data['coupon_code']) : null,
+            // Coupons removed; ignore coupon_code
         ];
 
         // Booking access policy
@@ -442,6 +451,85 @@ class Routes
         }
         $result['intake_required'] = $intake_required;
         return rest_ensure_response($result);
+    }
+
+    public static function book_bulk(WP_REST_Request $req)
+    {
+        global $wpdb;
+        $data = $req->get_json_params();
+        $ids = $data['schedule_ids'] ?? [];
+        if (!is_array($ids) || empty($ids)) return new WP_Error('cfp_invalid_request', __('Missing schedule_ids', 'classflow-pro'), ['status' => 400]);
+        $use_credits = !empty($data['use_credits']);
+        $customer = [
+            'user_id' => get_current_user_id() ?: null,
+            'email' => sanitize_email($data['email'] ?? ''),
+            'name' => sanitize_text_field($data['name'] ?? ''),
+        ];
+        // Policy checks similar to single book
+        $require_login = (bool) \ClassFlowPro\Admin\Settings::get('require_login_to_book', 0);
+        $auto_create = (bool) \ClassFlowPro\Admin\Settings::get('auto_create_user_on_booking', 1);
+        if ($require_login && empty($customer['user_id'])) {
+            return new WP_Error('cfp_auth_required', __('Please log in to book.', 'classflow-pro'), ['status' => 401]);
+        }
+        if (!$customer['user_id'] && $auto_create && $customer['email']) {
+            $existing = get_user_by('email', $customer['email']);
+            if ($existing) { $customer['user_id'] = (int)$existing->ID; }
+        }
+        if (!$customer['user_id'] && empty($customer['email'])) {
+            return new WP_Error('cfp_invalid_request', __('Missing customer info', 'classflow-pro'), ['status' => 400]);
+        }
+        $results = [];
+        $paid = [];
+        foreach ($ids as $sid) {
+            $sid = (int)$sid; if ($sid<=0) continue;
+            $res = \ClassFlowPro\Booking\Manager::book($sid, $customer, $use_credits);
+            if (is_wp_error($res)) {
+                $results[] = [ 'schedule_id' => $sid, 'ok' => false, 'error' => $res->get_error_message() ];
+                continue;
+            }
+            $results[] = [ 'schedule_id' => $sid, 'ok' => true, 'booking_id' => (int)$res['booking_id'], 'amount_cents' => (int)$res['amount_cents'], 'status' => $res['status'] ];
+            if (!empty($res['amount_cents'])) {
+                $paid[] = [ 'schedule_id' => $sid, 'booking_id' => (int)$res['booking_id'], 'amount_cents' => (int)$res['amount_cents'], 'currency' => $res['currency'] ?? 'usd' ];
+            }
+        }
+        // If any require payment, create a single Checkout Session with multiple line items (platform-level)
+        if (!empty($paid)) {
+            // Build line items
+            $line_items = [];
+            $booking_ids = [];
+            $schedules_tbl = $wpdb->prefix . 'cfp_schedules';
+            foreach ($paid as $p) {
+                $bid = (int)$p['booking_id'];
+                $booking_ids[] = $bid;
+                // Fetch schedule to build description
+                $sch = $wpdb->get_row($wpdb->prepare("SELECT class_id, start_time, location_id FROM $schedules_tbl WHERE id = (SELECT schedule_id FROM {$wpdb->prefix}cfp_bookings WHERE id=%d)", $bid), ARRAY_A);
+                $class_title = \ClassFlowPro\Utils\Entities::class_name((int)($sch['class_id'] ?? 0));
+                $desc = $class_title . ' — ' . gmdate('Y-m-d H:i', strtotime($sch['start_time'] ?? '')) . ' UTC';
+                $line_items[] = [
+                    'amount_cents' => (int)$p['amount_cents'],
+                    'currency' => $p['currency'] ?? 'usd',
+                    'name' => $class_title ?: 'Class',
+                    'description' => $desc,
+                ];
+            }
+            $default_success = add_query_arg(['cfp_checkout' => 'success'], home_url('/'));
+            $default_cancel = add_query_arg(['cfp_checkout' => 'cancel'], home_url('/'));
+            $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session_multi([
+                'line_items' => $line_items,
+                'success_url' => $default_success,
+                'cancel_url' => $default_cancel,
+                'booking_ids' => $booking_ids,
+            ]);
+            if (!is_wp_error($session)) {
+                return rest_ensure_response([
+                    'ok' => true,
+                    'items' => $results,
+                    'requires_payment' => $paid,
+                    'checkout' => $session,
+                ]);
+            }
+        }
+        return rest_ensure_response(['ok' => true, 'items' => $results]);
     }
 
     public static function private_request(WP_REST_Request $req)
@@ -578,12 +666,33 @@ class Routes
         $default_cancel = add_query_arg(['cfp_checkout' => 'cancel', 'booking_id' => $booking_id], home_url('/'));
         $conf_success = \ClassFlowPro\Admin\Settings::get('checkout_success_url', '');
         $conf_cancel = \ClassFlowPro\Admin\Settings::get('checkout_cancel_url', '');
-        $success_url = $conf_success ?: $default_success;
-        $cancel_url = $conf_cancel ?: $default_cancel;
+
+        // Ensure success/cancel URLs are absolute and valid for Stripe Checkout
+        $make_absolute = function($url, $fallback) {
+            $url = trim((string)$url);
+            if (!$url) return $fallback;
+            // If it's already a valid absolute URL, keep it
+            if (function_exists('wp_http_validate_url') && wp_http_validate_url($url)) {
+                return $url;
+            }
+            // Support site-relative paths like /thank-you
+            if (str_starts_with($url, '/')) {
+                $abs = home_url($url);
+                if (!function_exists('wp_http_validate_url') || wp_http_validate_url($abs)) return $abs;
+            }
+            // Fallback if still invalid
+            return $fallback;
+        };
+
+        $success_url = $make_absolute($conf_success, $default_success);
+        $cancel_url = $make_absolute($conf_cancel, $default_cancel);
+
+        // Always use USD for Stripe Checkout Session
+        $currency = 'usd';
 
         $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session([
             'amount_cents' => $amount_cents,
-            'currency' => $row['currency'],
+            'currency' => $currency,
             'class_title' => $class_title,
             'description' => $desc,
             'success_url' => $success_url,
@@ -638,15 +747,10 @@ class Routes
         $buyer_name = sanitize_text_field($data['buyer_name'] ?? '');
         $email = sanitize_email($data['email'] ?? '');
         $user_id = get_current_user_id();
-        if (\ClassFlowPro\Admin\Settings::get('stripe_use_checkout', 0)) {
-            $session = \ClassFlowPro\Packages\Manager::create_checkout_session($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
-            if (is_wp_error($session)) return $session;
-            return rest_ensure_response($session);
-        } else {
-            $intent = \ClassFlowPro\Packages\Manager::create_purchase_intent($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
-            if (is_wp_error($intent)) return $intent;
-            return rest_ensure_response($intent);
-        }
+        // Always use Stripe Checkout for package purchases
+        $session = \ClassFlowPro\Packages\Manager::create_checkout_session($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
+        if (is_wp_error($session)) return $session;
+        return rest_ensure_response($session);
     }
 
     public static function me_overview(WP_REST_Request $req)

@@ -13,6 +13,11 @@ class Shortcodes
         add_shortcode('cfp_user_portal', [self::class, 'user_portal']);
         add_shortcode('cfp_checkout_success', [self::class, 'checkout_success']);
         add_shortcode('cfp_waitlist_response', [self::class, 'waitlist_response']);
+        // Parity for Elementor-only widgets
+        add_shortcode('cfp_book_class', [self::class, 'book_class']);
+        add_shortcode('cfp_buy_package', [self::class, 'buy_package']);
+        add_shortcode('cfp_book_private', [self::class, 'book_private']);
+        add_shortcode('cfp_client_dashboard', [self::class, 'client_dashboard']);
     }
 
     public static function small_calendar_booking($atts): string
@@ -369,6 +374,110 @@ class Shortcodes
         // Show booking widget
         $out .= do_shortcode('[cfp_step_booking]');
         return $out;
+    }
+
+    public static function book_class($atts): string
+    {
+        $atts = shortcode_atts(['class_id' => 0, 'location_id' => 0], $atts, 'cfp_book_class');
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-booking');
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-book-class" data-class-id="' . esc_attr((int)$atts['class_id']) . '" data-location-id="' . esc_attr((int)$atts['location_id']) . '" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<div class="cfp-book-class__filters">';
+        echo '<label>' . esc_html__('Date from', 'classflow-pro') . ' <input type="date" class="cfp-date-from"></label> ';
+        echo '<label>' . esc_html__('Date to', 'classflow-pro') . ' <input type="date" class="cfp-date-to"></label> ';
+        echo '<button class="button cfp-load-schedules">' . esc_html__('Load Schedules', 'classflow-pro') . '</button>';
+        echo '</div>';
+        echo '<div class="cfp-schedules"></div>';
+        echo '<div class="cfp-booking-form" style="display:none">';
+        echo '<h4>' . esc_html__('Book Selected Class', 'classflow-pro') . '</h4>';
+        echo '<label>' . esc_html__('Your name', 'classflow-pro') . ' <input type="text" class="cfp-name"></label>';
+        echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email" autocomplete="email"></label>';
+        echo '<label>' . esc_html__('Phone', 'classflow-pro') . ' <input type="tel" class="cfp-phone" autocomplete="tel"></label>';
+        echo '<div class="cfp-account-fields" style="display:block;margin:8px 0;">';
+        echo '<label>' . esc_html__('Create password', 'classflow-pro') . ' <input type="password" class="cfp-password" autocomplete="new-password"></label> ';
+        echo '<small style="display:block;color:#64748b;">' . esc_html__('If you don\'t have an account, we\'ll create one using this password.', 'classflow-pro') . '</small>';
+        echo '<label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> ' . esc_html__('Send me text messages about my bookings (optional)', 'classflow-pro') . '</label>';
+        echo '</div>';
+        echo '<label><input type="checkbox" class="cfp-use-credits"> ' . esc_html__('Use available credits', 'classflow-pro') . '</label>';
+        echo '<button class="button button-primary cfp-book">' . esc_html__('Book Now', 'classflow-pro') . '</button>';
+        echo '<div class="cfp-payment" style="display:none">';
+        echo '<div class="cfp-prb" style="display:none;margin:8px 0;"><div class="cfp-prb-element"></div></div>';
+        echo '<div class="cfp-card-element"></div>';
+        echo '<button class="button button-primary cfp-pay">' . esc_html__('Pay', 'classflow-pro') . '</button>';
+        echo '</div>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function buy_package($atts): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-booking');
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-buy-package" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h4>' . esc_html__('Purchase Class Package', 'classflow-pro') . '</h4>';
+        echo '<label>' . esc_html__('Package Name', 'classflow-pro') . ' <input type="text" class="cfp-pkg-name" placeholder="10-Class Pack"></label>';
+        echo '<label>' . esc_html__('Credits', 'classflow-pro') . ' <input type="number" class="cfp-pkg-credits" value="10" min="1"></label>';
+        echo '<label>' . esc_html__('Price (cents)', 'classflow-pro') . ' <input type="number" class="cfp-pkg-price" value="15000" min="50"></label>';
+        echo '<div class="cfp-card-element"></div>';
+        echo '<button class="button button-primary cfp-pkg-pay">' . esc_html__('Pay & Add Credits', 'classflow-pro') . '</button>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function book_private($atts): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-booking');
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-book-private" data-private="1" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h4>' . esc_html__('Book a Private Session', 'classflow-pro') . '</h4>';
+        echo '<div class="cfp-private-form">';
+        echo '<label>' . esc_html__('Choose Instructor (post ID)', 'classflow-pro') . ' <input type="number" class="cfp-instructor-id" min="1" step="1"></label>';
+        echo '<label>' . esc_html__('Preferred Date', 'classflow-pro') . ' <input type="date" class="cfp-date"></label>';
+        echo '<label>' . esc_html__('Preferred Time', 'classflow-pro') . ' <input type="time" class="cfp-time"></label>';
+        echo '<label>' . esc_html__('Notes', 'classflow-pro') . ' <textarea class="cfp-notes"></textarea></label>';
+        echo '<label>' . esc_html__('Your name', 'classflow-pro') . ' <input type="text" class="cfp-name"></label>';
+        echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email"></label>';
+        echo '<button class="button button-primary cfp-request-private">' . esc_html__('Request Private Session', 'classflow-pro') . '</button>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function client_dashboard($atts): string
+    {
+        if (!is_user_logged_in()) {
+            return '<p>' . esc_html__('Please log in to view your bookings and packages.', 'classflow-pro') . '</p>';
+        }
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-client', CFP_PLUGIN_URL . 'assets/js/client.js', ['jquery'], '1.0.0', true);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-client-dashboard" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h3>' . esc_html__('My Dashboard', 'classflow-pro') . '</h3>';
+        echo '<div class="cfp-kpis" style="display:flex;gap:12px;flex-wrap:wrap;">';
+        echo '<div class="cfp-kpi"><strong>' . esc_html__('Credits', 'classflow-pro') . ':</strong> <span class="cfp-credits">—</span></div>';
+        echo '</div>';
+        echo '<h4>' . esc_html__('Upcoming Bookings', 'classflow-pro') . '</h4>';
+        echo '<div class="cfp-upcoming"></div>';
+        echo '<h4>' . esc_html__('Past Bookings', 'classflow-pro') . '</h4>';
+        echo '<div class="cfp-past"></div>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        return ob_get_clean();
     }
 
     public static function user_portal($atts): string

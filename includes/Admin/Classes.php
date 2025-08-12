@@ -87,7 +87,7 @@ class Classes
                         <td><?php echo esc_html((string) (int) $row['duration_mins']) . ' ' . esc_html__('mins', 'classflow-pro'); ?></td>
                         <td><?php echo esc_html((string) (int) $row['capacity']); ?></td>
                         <td>
-                            <?php $cents = (int) $row['price_cents']; $cur = $row['currency'] ?: \ClassFlowPro\Admin\Settings::get('currency','usd'); echo esc_html(number_format_i18n($cents/100, 2) . ' ' . strtoupper($cur)); ?>
+                            <?php $cents = (int) $row['price_cents']; echo esc_html(number_format_i18n($cents/100, 2) . ' USD'); ?>
                         </td>
                         <td>
                             <?php $st = $row['status']; $label = $st === 'active' ? __('Active', 'classflow-pro') : ($st === 'inactive' ? __('Inactive', 'classflow-pro') : __('Draft', 'classflow-pro')); echo esc_html($label); ?>
@@ -139,7 +139,8 @@ class Classes
         $duration = isset($row['duration_mins']) ? (int)$row['duration_mins'] : 60;
         $capacity = isset($row['capacity']) ? (int)$row['capacity'] : 8;
         $price_cents = isset($row['price_cents']) ? (int)$row['price_cents'] : 0;
-        $currency = $row['currency'] ?? \ClassFlowPro\Admin\Settings::get('currency','usd');
+        // Force USD
+        $currency = 'usd';
         $status = $row['status'] ?? 'active';
         $thumb_id = !empty($row['featured_image_id']) ? (int)$row['featured_image_id'] : 0;
         $default_location_id = !empty($row['default_location_id']) ? (int)$row['default_location_id'] : 0;
@@ -179,14 +180,10 @@ class Classes
                                             <td><input type="number" min="1" step="1" class="small-text" id="cfp_capacity" name="capacity" value="<?php echo esc_attr((string)$capacity); ?>" /></td>
                                         </tr>
                                         <tr>
-                                            <th><label for="cfp_price"><?php esc_html_e('Price', 'classflow-pro'); ?></label></th>
+                                            <th><label for="cfp_price"><?php esc_html_e('Price (USD)', 'classflow-pro'); ?></label></th>
                                             <td>
                                                 <input type="number" step="0.01" min="0" class="small-text" id="cfp_price" name="price" value="<?php echo esc_attr(number_format((float)($price_cents/100), 2, '.', '')); ?>" />
-                                                <select id="cfp_currency" name="currency">
-                                                    <?php foreach (['usd','eur','gbp','cad','aud'] as $cur): ?>
-                                                        <option value="<?php echo esc_attr($cur); ?>" <?php selected($currency, $cur); ?>><?php echo esc_html(strtoupper($cur)); ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
+                                                <span><?php echo esc_html__('USD', 'classflow-pro'); ?></span>
                                             </td>
                                         </tr>
                                         <tr>
@@ -284,7 +281,8 @@ class Classes
         $duration = isset($_POST['duration']) ? max(1, (int) $_POST['duration']) : 60;
         $capacity = isset($_POST['capacity']) ? max(1, (int) $_POST['capacity']) : 8;
         $price = isset($_POST['price']) ? max(0, (float) $_POST['price']) : 0.0;
-        $currency = isset($_POST['currency']) ? sanitize_text_field($_POST['currency']) : \ClassFlowPro\Admin\Settings::get('currency','usd');
+        // Force USD regardless of submitted value
+        $currency = 'usd';
         $status = isset($_POST['status']) ? sanitize_key($_POST['status']) : 'active';
         $featured_id = isset($_POST['featured_image_id']) ? (int) $_POST['featured_image_id'] : 0;
         $default_location_id = isset($_POST['default_location_id']) ? (int) $_POST['default_location_id'] : 0;

@@ -33,7 +33,7 @@ class Payouts
         echo '</form>';
 
         echo '<table class="widefat striped"><thead><tr><th>Instructor</th><th>Gross</th><th>Platform Fee</th><th>Payout</th><th>Count</th></tr></thead><tbody>';
-        $currency = Settings::get('currency', 'usd');
+        $currency = 'usd';
         foreach ($rows as $r) {
             $name = $r['instructor_id'] ? get_the_title((int)$r['instructor_id']) : '—';
             $gross = (int)$r['gross_cents'];
@@ -88,4 +88,3 @@ class Payouts
         exit;
     }
 }
-

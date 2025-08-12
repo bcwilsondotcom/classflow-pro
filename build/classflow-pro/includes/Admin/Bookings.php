@@ -11,7 +11,7 @@ class Bookings
         wp_localize_script('cfp-admin-bookings', 'CFP_ADMIN', [
             'restUrl' => esc_url_raw(rest_url('classflow/v1/')),
             'nonce' => wp_create_nonce('wp_rest'),
-            'currency' => Settings::get('currency', 'usd'),
+            'currency' => 'usd',
             'stripePublishableKey' => Settings::get('stripe_publishable_key', ''),
         ]);
 

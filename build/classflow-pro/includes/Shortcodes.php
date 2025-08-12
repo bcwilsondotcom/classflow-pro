@@ -13,6 +13,11 @@ class Shortcodes
         add_shortcode('cfp_user_portal', [self::class, 'user_portal']);
         add_shortcode('cfp_checkout_success', [self::class, 'checkout_success']);
         add_shortcode('cfp_waitlist_response', [self::class, 'waitlist_response']);
+        // Parity for Elementor-only widgets
+        add_shortcode('cfp_book_class', [self::class, 'book_class']);
+        add_shortcode('cfp_buy_package', [self::class, 'buy_package']);
+        add_shortcode('cfp_book_private', [self::class, 'book_private']);
+        add_shortcode('cfp_client_dashboard', [self::class, 'client_dashboard']);
     }
 
     public static function small_calendar_booking($atts): string
@@ -56,6 +61,7 @@ class Shortcodes
                             <select class="cfp-filter-instructor">
                                 <option value="">All Instructors</option>
                             </select>
+                            <div class="cfp-cal-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-left:8px;"></div>
                         </div>
                     </div>
                     <div class="cfp-cal-grid cfp-loading"></div>
@@ -72,10 +78,7 @@ class Shortcodes
                         Email Address
                         <input type="email" class="cfp-email" placeholder="your@email.com" required>
                     </label>
-                    <label>
-                        Promo Code
-                        <input type="text" class="cfp-coupon" placeholder="Optional">
-                    </label>
+                    
                     <label style="display: flex; align-items: center; font-weight: normal;">
                         <input type="checkbox" class="cfp-use-credits">
                         <span>Use available credits</span>
@@ -134,6 +137,7 @@ class Shortcodes
                             <select class="cfp-filter-instructor">
                                 <option value="">All Instructors</option>
                             </select>
+                            <div class="cfp-cal-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-left:8px;"></div>
                         </div>
                     </div>
                 </div>
@@ -143,48 +147,168 @@ class Shortcodes
                         <div class="cfp-agenda" style="display:none"></div>
                     </div>
                     <div class="cfp-full-cal-sidebar">
-                        <div class="cfp-sidebar-card">
-                            <h3>Selected Class</h3>
-                            <div class="cfp-cal-selected"></div>
-                        </div>
-                        <div class="cfp-sidebar-card">
-                            <h3>Quick Booking</h3>
-                            <form class="cfp-booking-form">
-                                <label>
-                                    Name
-                                    <input type="text" class="cfp-name" placeholder="Your full name" required>
-                                </label>
-                                <label>
-                                    Email
-                                    <input type="email" class="cfp-email" placeholder="your@email.com" required>
-                                </label>
-                                <label>
-                                    Phone
-                                    <input type="tel" class="cfp-phone" placeholder="(555) 123-4567">
-                                </label>
-                                <label>
-                                    Create password
-                                    <input type="password" class="cfp-password" autocomplete="new-password" placeholder="Set a password (optional)">
-                                </label>
-                                <label class="cfp-checkbox-label">
-                                    <input type="checkbox" class="cfp-sms-optin">
-                                    <span>Send me text messages about my bookings (optional)</span>
-                                </label>
-                                <label>
-                                    Promo Code
-                                    <input type="text" class="cfp-coupon" placeholder="Enter code">
-                                </label>
-                                <label class="cfp-checkbox-label">
-                                    <input type="checkbox" class="cfp-use-credits">
-                                    <span>Use available credits</span>
-                                </label>
-                                <button type="button" class="cfp-book">Book This Class</button>
-                            </form>
-                            <div class="cfp-payment" style="display:none">
-                                <h4>Payment Details</h4>
-                                <div class="cfp-card-element"></div>
-                                <button class="cfp-pay">Complete Payment</button>
+                        <!-- Step Indicator -->
+                        <div class="cfp-booking-steps">
+                            <div class="cfp-step-indicator active" data-step="1">
+                                <span class="cfp-step-number">1</span>
+                                <span class="cfp-step-label">Select Classes</span>
                             </div>
+                            <div class="cfp-step-connector"></div>
+                            <div class="cfp-step-indicator" data-step="2">
+                                <span class="cfp-step-number">2</span>
+                                <span class="cfp-step-label">Your Details</span>
+                            </div>
+                            <div class="cfp-step-connector"></div>
+                            <div class="cfp-step-indicator" data-step="3">
+                                <span class="cfp-step-number">3</span>
+                                <span class="cfp-step-label">Confirm</span>
+                            </div>
+                        </div>
+
+                        <!-- Selected Classes Section -->
+                        <div class="cfp-sidebar-section cfp-selected-section">
+                            <div class="cfp-section-header">
+                                <h3>Selected Classes</h3>
+                                <span class="cfp-selected-count">0 selected</span>
+                            </div>
+                            <div class="cfp-cal-selected">
+                                <div class="cfp-empty-selection">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <p>Click on classes in the calendar to select them</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Booking Details Section -->
+                        <div class="cfp-sidebar-section cfp-details-section">
+                            <div class="cfp-section-header">
+                                <h3>Booking Details</h3>
+                            </div>
+                            <form class="cfp-booking-form">
+                                <!-- Contact Information Group -->
+                                <div class="cfp-form-group">
+                                    <h4 class="cfp-form-group-title">Contact Information</h4>
+                                    <div class="cfp-input-wrapper">
+                                        <label for="cfp-name">Full Name</label>
+                                        <input type="text" id="cfp-name" class="cfp-name" placeholder="John Doe" required>
+                                    </div>
+                                    <div class="cfp-input-wrapper">
+                                        <label for="cfp-email">Email Address</label>
+                                        <input type="email" id="cfp-email" class="cfp-email" placeholder="john@example.com" required>
+                                    </div>
+                                    <div class="cfp-input-wrapper">
+                                        <label for="cfp-phone">Phone Number <span class="cfp-optional">(optional)</span></label>
+                                        <input type="tel" id="cfp-phone" class="cfp-phone" placeholder="(555) 123-4567">
+                                    </div>
+                                </div>
+
+                                <!-- Account Options Group -->
+                                <div class="cfp-form-group">
+                                    <h4 class="cfp-form-group-title">Account Options</h4>
+                                    <div class="cfp-input-wrapper cfp-password-wrapper">
+                                        <label for="cfp-password">Password <span class="cfp-optional">(optional)</span></label>
+                                        <input type="password" id="cfp-password" class="cfp-password" autocomplete="new-password" placeholder="Create account password">
+                                        <small class="cfp-help-text">Create a password to save your booking history</small>
+                                    </div>
+                                </div>
+
+                                <!-- Payment Options Group -->
+                                <div class="cfp-form-group cfp-payment-options-group">
+                                    <h4 class="cfp-form-group-title">Payment Method</h4>
+                                    
+                                    <!-- Credits Section -->
+                                    <div class="cfp-credits-section">
+                                        <!-- Will be dynamically populated based on user credits -->
+                                        <div class="cfp-credits-container">
+                                            <!-- For users with credits -->
+                                            <div class="cfp-has-credits" style="display:none;">
+                                                <label class="cfp-checkbox-label cfp-styled-checkbox cfp-credits-available">
+                                                    <input type="checkbox" class="cfp-use-credits" checked>
+                                                    <span class="cfp-checkbox-custom"></span>
+                                                    <span class="cfp-checkbox-text">
+                                                        <strong>Use Class Credits</strong>
+                                                        <small class="cfp-credits-balance">You have <span class="cfp-credit-count">0</span> credits available</small>
+                                                    </span>
+                                                </label>
+                                                <div class="cfp-credits-info">
+                                                    <p class="cfp-credits-coverage"></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- For users without credits -->
+                                            <div class="cfp-no-credits" style="display:none;">
+                                                <div class="cfp-package-upsell">
+                                                    <div class="cfp-upsell-badge">Save Money!</div>
+                                                    <h5>Get Better Value with a Package</h5>
+                                                    <p>Purchase a class package and save up to 20% on your bookings</p>
+                                                    <button type="button" class="cfp-view-packages">
+                                                        <span>View Package Options</span>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="cfp-pay-option">
+                                                    <label class="cfp-checkbox-label cfp-styled-checkbox">
+                                                        <input type="radio" name="payment_method" value="card" checked>
+                                                        <span class="cfp-checkbox-custom"></span>
+                                                        <span class="cfp-checkbox-text">
+                                                            <strong>Pay with Card</strong>
+                                                            <small>One-time payment for selected classes</small>
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- SMS Notifications -->
+                                    <div class="cfp-notifications-section">
+                                        <label class="cfp-checkbox-label cfp-styled-checkbox">
+                                            <input type="checkbox" class="cfp-sms-optin">
+                                            <span class="cfp-checkbox-custom"></span>
+                                            <span class="cfp-checkbox-text">
+                                                <strong>SMS Reminders</strong>
+                                                <small>Get text reminders 24 hours before your class</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Action Button -->
+                                <div class="cfp-form-actions">
+                                    <button type="button" class="cfp-book cfp-book-primary">
+                                        <span class="cfp-button-text">Proceed to Booking</span>
+                                        <svg class="cfp-button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            <polyline points="12 5 19 12 12 19"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </form>
+                            
+                            <!-- Payment Section (Hidden by default) -->
+                            <div class="cfp-payment" style="display:none">
+                                <div class="cfp-payment-header">
+                                    <h4>Payment Information</h4>
+                                    <span class="cfp-payment-amount"></span>
+                                </div>
+                                <div class="cfp-card-element"></div>
+                                <button class="cfp-pay cfp-pay-button">
+                                    <span>Complete Payment</span>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <!-- Messages -->
                             <div class="cfp-msg" aria-live="polite"></div>
                         </div>
                     </div>
@@ -205,7 +329,7 @@ class Shortcodes
         echo '<div class="cfp-step-booking" data-nonce="' . esc_attr($nonce) . '">';
         echo '<div class="cfp-step cfp-step-1"><h4>Step 1 — Choose</h4><label>Location <select class="cfp-loc"><option value="">All</option></select></label> <label>Class <select class="cfp-class"><option value="">All</option></select></label> <label>Date <input type="date" class="cfp-date"></label> <button class="button cfp-next-1">Next</button></div>';
         echo '<div class="cfp-step cfp-step-2" style="display:none"><h4>Step 2 — Select Time</h4><div class="cfp-times"></div><button class="button cfp-prev-2">Back</button> <button class="button cfp-next-2">Next</button></div>';
-        echo '<div class="cfp-step cfp-step-3" style="display:none"><h4>Step 3 — Your Details</h4><label>Name <input type="text" class="cfp-name"></label> <label>Email <input type="email" class="cfp-email" autocomplete="email"></label> <label>Phone <input type="tel" class="cfp-phone" autocomplete="tel"></label> <div class="cfp-account-fields" style="display:block;margin:8px 0;"><label>Create password <input type="password" class="cfp-password" autocomplete="new-password"></label> <small style="display:block;color:#64748b;">If you don\'t have an account, we\'ll create one using this password.</small> <label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> Send me text messages about my bookings (optional)</label></div> <label>Coupon <input type="text" class="cfp-coupon"></label> <label><input type="checkbox" class="cfp-use-credits"> Use credits</label> <button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button></div>';
+        echo '<div class="cfp-step cfp-step-3" style="display:none"><h4>Step 3 — Your Details</h4><label>Name <input type="text" class="cfp-name"></label> <label>Email <input type="email" class="cfp-email" autocomplete="email"></label> <label>Phone <input type="tel" class="cfp-phone" autocomplete="tel"></label> <div class="cfp-account-fields" style="display:block;margin:8px 0;"><label>Create password <input type="password" class="cfp-password" autocomplete="new-password"></label> <small style="display:block;color:#64748b;">If you don\'t have an account, we\'ll create one using this password.</small> <label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> Send me text messages about my bookings (optional)</label></div> <label><input type="checkbox" class="cfp-use-credits"> Use credits</label> <button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button></div>';
         echo '<div class="cfp-step cfp-step-4" style="display:none"><h4>Step 4 — Payment</h4><div class="cfp-review"></div><div class="cfp-payment" style="display:none"><div class="cfp-card-element"></div></div><button class="button cfp-prev-4">Back</button> <button class="button button-primary cfp-pay">Pay</button><div class="cfp-msg" aria-live="polite"></div></div>';
         echo '</div>';
         return ob_get_clean();
@@ -250,6 +374,110 @@ class Shortcodes
         // Show booking widget
         $out .= do_shortcode('[cfp_step_booking]');
         return $out;
+    }
+
+    public static function book_class($atts): string
+    {
+        $atts = shortcode_atts(['class_id' => 0, 'location_id' => 0], $atts, 'cfp_book_class');
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-booking');
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-book-class" data-class-id="' . esc_attr((int)$atts['class_id']) . '" data-location-id="' . esc_attr((int)$atts['location_id']) . '" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<div class="cfp-book-class__filters">';
+        echo '<label>' . esc_html__('Date from', 'classflow-pro') . ' <input type="date" class="cfp-date-from"></label> ';
+        echo '<label>' . esc_html__('Date to', 'classflow-pro') . ' <input type="date" class="cfp-date-to"></label> ';
+        echo '<button class="button cfp-load-schedules">' . esc_html__('Load Schedules', 'classflow-pro') . '</button>';
+        echo '</div>';
+        echo '<div class="cfp-schedules"></div>';
+        echo '<div class="cfp-booking-form" style="display:none">';
+        echo '<h4>' . esc_html__('Book Selected Class', 'classflow-pro') . '</h4>';
+        echo '<label>' . esc_html__('Your name', 'classflow-pro') . ' <input type="text" class="cfp-name"></label>';
+        echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email" autocomplete="email"></label>';
+        echo '<label>' . esc_html__('Phone', 'classflow-pro') . ' <input type="tel" class="cfp-phone" autocomplete="tel"></label>';
+        echo '<div class="cfp-account-fields" style="display:block;margin:8px 0;">';
+        echo '<label>' . esc_html__('Create password', 'classflow-pro') . ' <input type="password" class="cfp-password" autocomplete="new-password"></label> ';
+        echo '<small style="display:block;color:#64748b;">' . esc_html__('If you don\'t have an account, we\'ll create one using this password.', 'classflow-pro') . '</small>';
+        echo '<label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> ' . esc_html__('Send me text messages about my bookings (optional)', 'classflow-pro') . '</label>';
+        echo '</div>';
+        echo '<label><input type="checkbox" class="cfp-use-credits"> ' . esc_html__('Use available credits', 'classflow-pro') . '</label>';
+        echo '<button class="button button-primary cfp-book">' . esc_html__('Book Now', 'classflow-pro') . '</button>';
+        echo '<div class="cfp-payment" style="display:none">';
+        echo '<div class="cfp-prb" style="display:none;margin:8px 0;"><div class="cfp-prb-element"></div></div>';
+        echo '<div class="cfp-card-element"></div>';
+        echo '<button class="button button-primary cfp-pay">' . esc_html__('Pay', 'classflow-pro') . '</button>';
+        echo '</div>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function buy_package($atts): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-booking');
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-buy-package" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h4>' . esc_html__('Purchase Class Package', 'classflow-pro') . '</h4>';
+        echo '<label>' . esc_html__('Package Name', 'classflow-pro') . ' <input type="text" class="cfp-pkg-name" placeholder="10-Class Pack"></label>';
+        echo '<label>' . esc_html__('Credits', 'classflow-pro') . ' <input type="number" class="cfp-pkg-credits" value="10" min="1"></label>';
+        echo '<label>' . esc_html__('Price (cents)', 'classflow-pro') . ' <input type="number" class="cfp-pkg-price" value="15000" min="50"></label>';
+        echo '<div class="cfp-card-element"></div>';
+        echo '<button class="button button-primary cfp-pkg-pay">' . esc_html__('Pay & Add Credits', 'classflow-pro') . '</button>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function book_private($atts): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-booking');
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-book-private" data-private="1" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h4>' . esc_html__('Book a Private Session', 'classflow-pro') . '</h4>';
+        echo '<div class="cfp-private-form">';
+        echo '<label>' . esc_html__('Choose Instructor (post ID)', 'classflow-pro') . ' <input type="number" class="cfp-instructor-id" min="1" step="1"></label>';
+        echo '<label>' . esc_html__('Preferred Date', 'classflow-pro') . ' <input type="date" class="cfp-date"></label>';
+        echo '<label>' . esc_html__('Preferred Time', 'classflow-pro') . ' <input type="time" class="cfp-time"></label>';
+        echo '<label>' . esc_html__('Notes', 'classflow-pro') . ' <textarea class="cfp-notes"></textarea></label>';
+        echo '<label>' . esc_html__('Your name', 'classflow-pro') . ' <input type="text" class="cfp-name"></label>';
+        echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email"></label>';
+        echo '<button class="button button-primary cfp-request-private">' . esc_html__('Request Private Session', 'classflow-pro') . '</button>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    public static function client_dashboard($atts): string
+    {
+        if (!is_user_logged_in()) {
+            return '<p>' . esc_html__('Please log in to view your bookings and packages.', 'classflow-pro') . '</p>';
+        }
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-client', CFP_PLUGIN_URL . 'assets/js/client.js', ['jquery'], '1.0.0', true);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-client-dashboard" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h3>' . esc_html__('My Dashboard', 'classflow-pro') . '</h3>';
+        echo '<div class="cfp-kpis" style="display:flex;gap:12px;flex-wrap:wrap;">';
+        echo '<div class="cfp-kpi"><strong>' . esc_html__('Credits', 'classflow-pro') . ':</strong> <span class="cfp-credits">—</span></div>';
+        echo '</div>';
+        echo '<h4>' . esc_html__('Upcoming Bookings', 'classflow-pro') . '</h4>';
+        echo '<div class="cfp-upcoming"></div>';
+        echo '<h4>' . esc_html__('Past Bookings', 'classflow-pro') . '</h4>';
+        echo '<div class="cfp-past"></div>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
+        return ob_get_clean();
     }
 
     public static function user_portal($atts): string

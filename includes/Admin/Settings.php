@@ -50,45 +50,43 @@ class Settings
             echo '<p>' . esc_html__('General configuration for ClassFlow Pro.', 'classflow-pro') . '</p>';
         }, 'classflow-pro');
 
-        add_settings_field('currency', __('Currency', 'classflow-pro'), [self::class, 'field_currency'], 'classflow-pro', 'cfp_general');
-        add_settings_field('business_country', __('Business Country (ISO-2)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'business_country']);
-        add_settings_field('business_timezone', __('Business Timezone (IANA)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'business_timezone']);
-        add_settings_field('cancellation_window_hours', __('Cancellation Window (hours)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'cancellation_window_hours', 'step' => '1']);
-        add_settings_field('reschedule_window_hours', __('Reschedule Window (hours)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'reschedule_window_hours', 'step' => '1']);
-        add_settings_field('notify_customer', __('Email Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_customer']);
-        add_settings_field('require_login_to_book', __('Require Login To Book', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_login_to_book']);
-        add_settings_field('auto_create_user_on_booking', __('Auto-create User On Booking', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'auto_create_user_on_booking']);
-        add_settings_field('notify_admin', __('Email Admin', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_admin']);
-        add_settings_field('require_intake', __('Require Intake Before First Visit', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_intake']);
-        add_settings_field('intake_page_url', __('Intake Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'intake_page_url']);
-        add_settings_field('waitlist_response_page_url', __('Waitlist Response Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'waitlist_response_page_url']);
-        add_settings_field('waitlist_hold_minutes', __('Waitlist Hold Window (minutes)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'waitlist_hold_minutes', 'step' => '5']);
-        add_settings_field('delete_on_uninstall', __('Delete Data on Uninstall', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'delete_on_uninstall']);
+        // Business Country/Timezone are inferred from Locations; no manual settings fields shown
+        add_settings_field('cancellation_window_hours', __('Cancellation Window (hours)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'cancellation_window_hours', 'step' => '1', 'help' => __('Minimum hours before start that clients can cancel.', 'classflow-pro')]);
+        add_settings_field('reschedule_window_hours', __('Reschedule Window (hours)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'reschedule_window_hours', 'step' => '1', 'help' => __('Minimum hours before start that clients can reschedule.', 'classflow-pro')]);
+        add_settings_field('notify_customer', __('Email Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_customer', 'help' => __('Send booking confirmations and updates to clients.', 'classflow-pro')]);
+        add_settings_field('require_login_to_book', __('Require Login To Book', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_login_to_book', 'help' => __('Force sign-in/up before booking classes.', 'classflow-pro')]);
+        add_settings_field('auto_create_user_on_booking', __('Auto-create User On Booking', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'auto_create_user_on_booking', 'help' => __('Create a WP user for new clients when they book.', 'classflow-pro')]);
+        add_settings_field('notify_admin', __('Email Admin', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'notify_admin', 'help' => __('Send booking notifications to site admin.', 'classflow-pro')]);
+        add_settings_field('require_intake', __('Require Intake Before First Visit', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'require_intake', 'help' => __('Clients must submit intake form before first class.', 'classflow-pro')]);
+        add_settings_field('intake_page_url', __('Intake Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'intake_page_url', 'help' => __('URL of the page containing the intake form shortcode.', 'classflow-pro')]);
+        add_settings_field('waitlist_response_page_url', __('Waitlist Response Page URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_general', ['key' => 'waitlist_response_page_url', 'help' => __('URL where clients confirm waitlist offers.', 'classflow-pro')]);
+        add_settings_field('waitlist_hold_minutes', __('Waitlist Hold Window (minutes)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_general', ['key' => 'waitlist_hold_minutes', 'step' => '5', 'help' => __('Time a released spot is held for the waitlisted client.', 'classflow-pro')]);
+        add_settings_field('delete_on_uninstall', __('Delete Data on Uninstall', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_general', ['key' => 'delete_on_uninstall', 'help' => __('Remove plugin data when uninstalling. Irreversible.', 'classflow-pro')]);
 
         // Notifications (Email/SMS)
         add_settings_section('cfp_notifications', __('Notifications', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Configure email and SMS notifications.', 'classflow-pro') . '</p>';
         }, 'classflow-pro');
-        add_settings_field('notify_sms_customer', __('SMS Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_customer']);
-        add_settings_field('notify_sms_instructor', __('SMS Instructors', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_instructor']);
-        add_settings_field('twilio_account_sid', __('Twilio Account SID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_account_sid']);
-        add_settings_field('twilio_auth_token', __('Twilio Auth Token', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_auth_token']);
-        add_settings_field('twilio_from_number', __('Twilio From Number (E.164)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_from_number']);
-        add_settings_field('reminder_hours_before', __('Reminder Hours Before (comma-separated)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'reminder_hours_before']);
+        add_settings_field('notify_sms_customer', __('SMS Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_customer', 'help' => __('Send SMS confirmations and reminders to clients.', 'classflow-pro')]);
+        add_settings_field('notify_sms_instructor', __('SMS Instructors', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_instructor', 'help' => __('Send SMS notifications to instructors.', 'classflow-pro')]);
+        add_settings_field('twilio_account_sid', __('Twilio Account SID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_account_sid', 'help' => __('From Twilio Console > Account > API Keys.', 'classflow-pro')]);
+        add_settings_field('twilio_auth_token', __('Twilio Auth Token', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_auth_token', 'help' => __('Twilio auth token for your account.', 'classflow-pro')]);
+        add_settings_field('twilio_from_number', __('Twilio From Number (E.164)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_from_number', 'help' => __('The sending number, e.g., +15551234567.', 'classflow-pro')]);
+        add_settings_field('reminder_hours_before', __('Reminder Hours Before (comma-separated)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'reminder_hours_before', 'help' => __('Ex: 24,2 sends reminders 24h and 2h before start.', 'classflow-pro')]);
 
         add_settings_section('cfp_stripe', __('Stripe', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Configure Stripe for payments and taxes. Set your webhook endpoint to /wp-json/classflow/v1/stripe/webhook', 'classflow-pro') . '</p>';
         }, 'classflow-pro');
-        add_settings_field('stripe_publishable_key', __('Publishable Key', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_publishable_key']);
-        add_settings_field('stripe_secret_key', __('Secret Key', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_secret_key']);
-        add_settings_field('stripe_webhook_secret', __('Webhook Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_webhook_secret']);
-        add_settings_field('stripe_enable_tax', __('Enable Stripe Tax', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_enable_tax']);
-        add_settings_field('stripe_connect_enabled', __('Enable Stripe Connect', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_connect_enabled']);
-        add_settings_field('platform_fee_percent', __('Platform Fee %', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_stripe', ['key' => 'platform_fee_percent', 'step' => '0.1']);
+        add_settings_field('stripe_publishable_key', __('Publishable Key', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_publishable_key', 'help' => __('Starts with pk_live_ or pk_test_.', 'classflow-pro')]);
+        add_settings_field('stripe_secret_key', __('Secret Key', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_secret_key', 'help' => __('Starts with sk_live_ or sk_test_.', 'classflow-pro')]);
+        add_settings_field('stripe_webhook_secret', __('Webhook Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_webhook_secret', 'help' => __('From Stripe Webhooks (whsec_…). Verifies incoming events.', 'classflow-pro')]);
+        add_settings_field('stripe_enable_tax', __('Enable Stripe Tax', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_enable_tax', 'help' => __('If enabled, Stripe calculates and adds tax.', 'classflow-pro')]);
+        add_settings_field('stripe_connect_enabled', __('Enable Stripe Connect', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_connect_enabled', 'help' => __('Split payments to connected accounts (marketplace).', 'classflow-pro')]);
+        add_settings_field('platform_fee_percent', __('Platform Fee %', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_stripe', ['key' => 'platform_fee_percent', 'step' => '0.1', 'help' => __('Percentage fee charged on transactions (Connect).', 'classflow-pro')]);
         // Always use Stripe Checkout; remove toggle
-        add_settings_field('stripe_allow_promo_codes', __('Allow Promotion Codes (Checkout)', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_allow_promo_codes']);
-        add_settings_field('checkout_success_url', __('Checkout Success URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_success_url']);
-        add_settings_field('checkout_cancel_url', __('Checkout Cancel URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_cancel_url']);
+        add_settings_field('stripe_allow_promo_codes', __('Allow Promotion Codes (Checkout)', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_allow_promo_codes', 'help' => __('Let customers enter valid Stripe promo codes at checkout.', 'classflow-pro')]);
+        add_settings_field('checkout_success_url', __('Checkout Success URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_success_url', 'help' => __('Where to send clients after successful checkout.', 'classflow-pro')]);
+        add_settings_field('checkout_cancel_url', __('Checkout Cancel URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_cancel_url', 'help' => __('Where to send clients if they cancel checkout.', 'classflow-pro')]);
 
         add_settings_section('cfp_quickbooks', __('QuickBooks Online', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Connect to QuickBooks to create sales receipts automatically on successful payments.', 'classflow-pro') . '</p>';
@@ -121,10 +119,10 @@ class Settings
         add_settings_section('cfp_google', __('Google Calendar', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Optionally sync schedules to a Google Calendar. Use connect at /wp-json/classflow/v1/google/connect', 'classflow-pro') . '</p>';
         }, 'classflow-pro');
-        add_settings_field('google_client_id', __('Client ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_id']);
-        add_settings_field('google_client_secret', __('Client Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_secret']);
-        add_settings_field('google_calendar_id', __('Calendar ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_id']);
-        add_settings_field('google_redirect_uri', __('Redirect URI', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_redirect_uri']);
+        add_settings_field('google_client_id', __('Client ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_id', 'help' => __('From Google Cloud Console → OAuth Client ID.', 'classflow-pro')]);
+        add_settings_field('google_client_secret', __('Client Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_google', ['key' => 'google_client_secret', 'help' => __('OAuth client secret (keep private).', 'classflow-pro')]);
+        add_settings_field('google_calendar_id', __('Calendar ID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_calendar_id', 'help' => __('Target calendar ID (e.g., you@example.com).', 'classflow-pro')]);
+        add_settings_field('google_redirect_uri', __('Redirect URI', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_google', ['key' => 'google_redirect_uri', 'help' => __('Must match in Google app; points to our connect URL.', 'classflow-pro')]);
     }
 
     public static function render_settings_page(): void
@@ -132,28 +130,77 @@ class Settings
         if (!current_user_can('manage_options')) {
             return;
         }
-        echo '<div class="wrap"><h1>' . esc_html__('ClassFlow Pro Settings', 'classflow-pro') . '</h1>';
-        // Show current effective value for key toggles for clarity
-        try {
-            $settings = get_option('cfp_settings', []);
-            $require_login = !empty($settings['require_login_to_book']);
-            echo '<div class="notice notice-info" style="margin-top:12px;">'
-                . '<p><strong>' . esc_html__('Require Login To Book:', 'classflow-pro') . '</strong> '
-                . ($require_login ? esc_html__('Enabled', 'classflow-pro') : esc_html__('Disabled', 'classflow-pro'))
-                . '</p></div>';
-        } catch (\Throwable $e) {}
+        $tabs = [
+            'general' => __('General', 'classflow-pro'),
+            'notifications' => __('Notifications', 'classflow-pro'),
+            'stripe' => __('Stripe', 'classflow-pro'),
+            'quickbooks' => __('QuickBooks', 'classflow-pro'),
+            'google' => __('Google Calendar', 'classflow-pro'),
+        ];
+        $active = isset($_GET['tab']) ? sanitize_key((string)$_GET['tab']) : 'general';
+        if (!isset($tabs[$active])) { $active = 'general'; }
+
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__('ClassFlow Pro Settings', 'classflow-pro') . '</h1>';
+        echo '<style>
+        .cfp-tab-nav{margin:18px 0; display:flex; gap:8px; border-bottom:1px solid #ccd0d4;}
+        .cfp-tab-nav a{padding:8px 12px; text-decoration:none; border:1px solid transparent; border-bottom:none; background:#f6f7f7; color:#1d2327; border-radius:4px 4px 0 0;}
+        .cfp-tab-nav a.active{background:#fff; border-color:#ccd0d4;}
+        .cfp-help{display:inline-block; margin-left:6px; color:#666; cursor:help;}
+        .cfp-help .dashicons{vertical-align:middle;}
+        </style>';
+        echo '<div class="cfp-tab-nav">';
+        foreach ($tabs as $slug => $label) {
+            $url = esc_url(add_query_arg(['page' => 'classflow-pro-settings', 'tab' => $slug], admin_url('admin.php')));
+            $class = $active === $slug ? 'active' : '';
+            echo '<a class="' . esc_attr($class) . '" href="' . $url . '">' . esc_html($label) . '</a>';
+        }
+        echo '</div>';
+
         echo '<form method="post" action="options.php">';
         settings_fields('cfp_settings_group');
-        do_settings_sections('classflow-pro');
+        // Render only the sections for the active tab
+        echo '<div class="cfp-settings-sections">';
+        self::render_sections_for_tab($active);
+        echo '</div>';
         submit_button();
         echo '</form></div>';
+    }
+
+    private static function render_sections_for_tab(string $tab): void
+    {
+        // Map tabs to section IDs
+        $page = 'classflow-pro';
+        $map = [
+            'general' => ['cfp_general'],
+            'notifications' => ['cfp_notifications'],
+            'stripe' => ['cfp_stripe'],
+            'quickbooks' => ['cfp_quickbooks'],
+            'google' => ['cfp_google'],
+        ];
+        if (empty($map[$tab])) return;
+        global $wp_settings_sections, $wp_settings_fields;
+        foreach ($map[$tab] as $section_id) {
+            if (!isset($wp_settings_sections[$page][$section_id])) continue;
+            $section = $wp_settings_sections[$page][$section_id];
+            if ($section['title']) {
+                echo '<h2>' . esc_html($section['title']) . '</h2>';
+            }
+            if (!empty($section['callback'])) {
+                call_user_func($section['callback']);
+            }
+            if (isset($wp_settings_fields[$page][$section_id])) {
+                echo '<table class="form-table" role="presentation">';
+                do_settings_fields($page, $section_id);
+                echo '</table>';
+            }
+        }
     }
 
     public static function sanitize_settings($input): array
     {
         $defaults = get_option('cfp_settings', []);
         $output = is_array($input) ? $input : [];
-        $output['currency'] = isset($output['currency']) ? sanitize_text_field($output['currency']) : ($defaults['currency'] ?? 'usd');
         foreach ([
             'stripe_publishable_key','stripe_secret_key','stripe_webhook_secret','quickbooks_client_id','quickbooks_client_secret','quickbooks_realm_id','quickbooks_redirect_uri',
             'template_confirmed_subject','template_canceled_subject','template_rescheduled_subject',
@@ -189,21 +236,16 @@ class Settings
         $output['require_login_to_book'] = isset($output['require_login_to_book']) ? 1 : 0;
         $output['auto_create_user_on_booking'] = isset($output['auto_create_user_on_booking']) ? 1 : 0;
         $output['notify_instructor'] = isset($output['notify_instructor']) ? 1 : 0;
+        // Keep business_country empty if not provided to allow inference from Locations
         $bc = strtoupper(sanitize_text_field($output['business_country'] ?? ''));
-        $output['business_country'] = preg_match('/^[A-Z]{2}$/', $bc) ? $bc : 'US';
+        $output['business_country'] = preg_match('/^[A-Z]{2}$/', $bc) ? $bc : '';
         $output['qb_item_per_class_enable'] = isset($output['qb_item_per_class_enable']) ? 1 : 0;
         $output['delete_on_uninstall'] = isset($output['delete_on_uninstall']) ? 1 : 0;
         $output['quickbooks_environment'] = in_array(($output['quickbooks_environment'] ?? 'production'), ['production','sandbox'], true) ? $output['quickbooks_environment'] : 'production';
         return $output;
     }
 
-    public static function field_currency(): void
-    {
-        $settings = get_option('cfp_settings', []);
-        $value = esc_attr($settings['currency'] ?? 'usd');
-        echo '<input type="text" name="cfp_settings[currency]" value="' . $value . '" class="regular-text" />';
-        echo '<p class="description">' . esc_html__('ISO currency code, e.g., usd, eur, gbp.', 'classflow-pro') . '</p>';
-    }
+    // Currency setting removed: plugin uses USD consistently
 
     public static function field_text(array $args): void
     {
@@ -211,6 +253,7 @@ class Settings
         $settings = get_option('cfp_settings', []);
         $value = esc_attr($settings[$key] ?? '');
         echo '<input type="text" name="cfp_settings[' . esc_attr($key) . ']" value="' . $value . '" class="regular-text" autocomplete="off" />';
+        self::maybe_help($args);
     }
 
     public static function field_password(array $args): void
@@ -219,6 +262,7 @@ class Settings
         $settings = get_option('cfp_settings', []);
         $value = esc_attr($settings[$key] ?? '');
         echo '<input type="password" name="cfp_settings[' . esc_attr($key) . ']" value="' . $value . '" class="regular-text" autocomplete="off" />';
+        self::maybe_help($args);
     }
 
     public static function field_checkbox(array $args): void
@@ -227,6 +271,7 @@ class Settings
         $settings = get_option('cfp_settings', []);
         $checked = !empty($settings[$key]) ? 'checked' : '';
         echo '<label><input type="checkbox" name="cfp_settings[' . esc_attr($key) . ']" value="1" ' . $checked . ' /> ' . esc_html__('Enabled', 'classflow-pro') . '</label>';
+        self::maybe_help($args);
     }
 
     public static function field_number(array $args): void
@@ -236,6 +281,7 @@ class Settings
         $settings = get_option('cfp_settings', []);
         $value = esc_attr($settings[$key] ?? '0');
         echo '<input type="number" name="cfp_settings[' . esc_attr($key) . ']" value="' . $value . '" step="' . $step . '" class="small-text" />';
+        self::maybe_help($args);
     }
 
     public static function field_select(array $args): void
@@ -249,6 +295,7 @@ class Settings
             echo '<option value="' . esc_attr($k) . '"' . selected($value, $k, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';
+        self::maybe_help($args);
     }
 
     public static function field_textarea(array $args): void
@@ -258,11 +305,56 @@ class Settings
         $value = esc_textarea($settings[$key] ?? '');
         echo '<textarea name="cfp_settings[' . esc_attr($key) . ']" rows="6" class="large-text code">' . $value . '</textarea>';
         echo '<p class="description">' . esc_html__('Placeholders: {class_title}, {start_time}, {old_start_time}, {amount}, {status}', 'classflow-pro') . '</p>';
+        self::maybe_help($args);
+    }
+
+    private static function maybe_help(array $args): void
+    {
+        if (!empty($args['help'])) {
+            echo ' <span class="cfp-help" title="' . esc_attr($args['help']) . '"><span class="dashicons dashicons-info-outline"></span></span>';
+        }
     }
 
     public static function get(string $key, $default = null)
     {
         $settings = get_option('cfp_settings', []);
-        return $settings[$key] ?? $default;
+        $val = $settings[$key] ?? null;
+        if (($key === 'business_country' || $key === 'business_timezone') && (empty($val))) {
+            // Try to infer from saved Locations if not explicitly set
+            $inferred = ($key === 'business_country') ? self::infer_business_country() : self::infer_business_timezone();
+            if (!empty($inferred)) {
+                return $inferred;
+            }
+        }
+        return $val ?? $default;
+    }
+
+    private static function infer_business_country(): string
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'cfp_locations';
+        // Prefer the most frequent non-empty country among locations
+        $row = $wpdb->get_row("SELECT country, COUNT(*) as cnt FROM $table WHERE country IS NOT NULL AND country <> '' GROUP BY country ORDER BY cnt DESC LIMIT 1", ARRAY_A);
+        $country = strtoupper((string)($row['country'] ?? ''));
+        return preg_match('/^[A-Z]{2}$/', $country) ? $country : 'US';
+    }
+
+    private static function infer_business_timezone(): string
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'cfp_locations';
+        // Prefer the most frequent non-empty timezone among locations
+        $row = $wpdb->get_row("SELECT timezone, COUNT(*) as cnt FROM $table WHERE timezone IS NOT NULL AND timezone <> '' GROUP BY timezone ORDER BY cnt DESC LIMIT 1", ARRAY_A);
+        $tz = (string)($row['timezone'] ?? '');
+        if (strpos($tz, '/') !== false) {
+            return $tz;
+        }
+        // Fall back to the WordPress site timezone from Settings → General
+        if (function_exists('wp_timezone_string')) {
+            $siteTz = (string) wp_timezone_string();
+        } else {
+            $siteTz = (string) get_option('timezone_string');
+        }
+        return $siteTz ?: 'UTC';
     }
 }

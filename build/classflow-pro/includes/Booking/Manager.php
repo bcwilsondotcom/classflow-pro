@@ -42,7 +42,8 @@ class Manager
         $user_id = $customer['user_id'] ?? null;
         $email = $customer['email'] ?? '';
         $amount_cents = (int)$schedule['price_cents'];
-        $currency = $schedule['currency'] ?: Settings::get('currency', 'usd');
+        // Always use USD for currency
+        $currency = 'usd';
         if ($amount_cents <= 0) {
             // Fallback to class price if schedule has no explicit price
             try {
@@ -50,7 +51,6 @@ class Manager
                 $row = $wpdb->get_row($wpdb->prepare("SELECT price_cents, currency FROM $cls WHERE id = %d", (int)$schedule['class_id']), ARRAY_A);
                 if ($row) {
                     $amount_cents = max(0, (int)$row['price_cents']);
-                    if (!empty($row['currency'])) $currency = $row['currency'];
                 }
             } catch (\Throwable $e) {}
         }
@@ -68,22 +68,10 @@ class Manager
             }
         }
 
-        // Apply coupon if provided
+        // Coupons removed: do not apply local discounts; Stripe promotion codes apply at checkout
         $discount_cents = 0;
         $coupon_id = null;
         $coupon_code = null;
-        if (!empty($customer['coupon_code']) && $amount_cents > 0) {
-            $coupon = \ClassFlowPro\Coupons\Manager::find_by_code($customer['coupon_code']);
-            if ($coupon) {
-                $res = \ClassFlowPro\Coupons\Manager::validate_and_discount($coupon, $schedule, (int)($user_id ?: 0), $email ?: null, $amount_cents);
-                if (empty($res['error'])) {
-                    $discount_cents = (int)$res['discount_cents'];
-                    $coupon_id = (int)$coupon['id'];
-                    $coupon_code = $coupon['code'];
-                    $amount_cents = max(0, $amount_cents - $discount_cents);
-                }
-            }
-        }
 
         $table = $wpdb->prefix . 'cfp_bookings';
         $wpdb->insert($table, [
@@ -95,10 +83,10 @@ class Manager
             'payment_status' => $amount_cents > 0 ? 'requires_payment' : 'paid',
             'credits_used' => $credits_used,
             'amount_cents' => $amount_cents,
-            'discount_cents' => $discount_cents,
+            'discount_cents' => 0,
             'currency' => $currency,
-            'coupon_id' => $coupon_id,
-            'coupon_code' => $coupon_code,
+            'coupon_id' => null,
+            'coupon_code' => null,
             'metadata' => wp_json_encode(['name' => $customer['name'] ?? '']),
         ], [
             '%d','%d','%s','%s','%s','%d','%d','%d','%s','%d','%s','%s'
@@ -134,9 +122,11 @@ class Manager
         $class_id = (int)$schedule['class_id'];
         $instructor_id = (int)$schedule['instructor_id'];
 
+        // Always use USD for payment intent currency
+        $cur = 'usd';
         $intent = StripeGateway::create_intent([
             'amount_cents' => (int)$booking['amount_cents'],
-            'currency' => $booking['currency'],
+            'currency' => $cur,
             'description' => \ClassFlowPro\Utils\Entities::class_name($class_id) . ' — ' . gmdate('Y-m-d H:i', strtotime($schedule['start_time'])) . ' UTC',
             'receipt_email' => $email,
             'customer_name' => $name,
