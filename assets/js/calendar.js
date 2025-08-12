@@ -51,6 +51,9 @@
   }
 
   function renderCalendar($root, refDate, rows) {
+    // Store schedules data for later use
+    $root.data('schedules', rows);
+    
     const view = $root.data('view') || 'month';
     const $title = $root.find('.cfp-cal-title');
     const isFullCalendar = $root.hasClass('cfp-full-calendar');
@@ -74,7 +77,9 @@
           const tz = r.tz || CFP_DATA.businessTimezone || 'UTC';
           const t = formatTimeLocal(r.start_time, tz);
           const color = pickClassColor(r.class_id, r.class_color);
-          const item = $('<div class="cfp-agenda-item"></div>').css({ borderLeft: '4px solid '+color, paddingLeft:'6px' });
+          const item = $('<div class="cfp-agenda-item"></div>')
+            .attr('data-sid', r.id)
+            .css({ borderLeft: '4px solid '+color, paddingLeft:'6px' });
           item.append('<span>'+ t +' — '+ (r.class_title||'') +'</span>');
           const btn = $('<button>Book</button>').on('click', ()=> selectSchedule($root, r));
           item.append(btn); day.append(item);
@@ -113,7 +118,10 @@
           const label = t + ' • ' + (r.class_title||'');
           const color = pickClassColor(r.class_id, r.class_color);
           const styles = styleForColor(color);
-          const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+'">'+label+'</div>').css(styles).on('click', () => selectSchedule($root, r));
+          const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+'">'+label+'</div>')
+            .attr('data-sid', r.id)
+            .css(styles)
+            .on('click', () => selectSchedule($root, r));
           cell.append(ev);
         });
         $grid.append(cell);
@@ -149,7 +157,10 @@
         const t = formatTimeLocal(r.start_time, tz);
         const color = pickClassColor(r.class_id, r.class_color);
         const styles = styleForColor(color);
-        const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+' at '+t+'">'+t+' '+( r.class_title||'')+'</div>').css(styles).on('click', () => selectSchedule($root, r));
+        const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+' at '+t+'">'+t+' '+( r.class_title||'')+'</div>')
+          .attr('data-sid', r.id)
+          .css(styles)
+          .on('click', () => selectSchedule($root, r));
         cell.append(ev);
       });
       
@@ -171,23 +182,152 @@
   function getStripe() { if (!window.Stripe || !CFP_DATA.stripePublishableKey) return null; if (!window.__cfpStripe) window.__cfpStripe = Stripe(CFP_DATA.stripePublishableKey); return window.__cfpStripe; }
 
   function selectSchedule($root, r) {
-    $root.data('selected-schedule', r.id);
-    const tz = r.tz || CFP_DATA.businessTimezone || 'UTC';
-    const dt = new Date(r.start_time + 'Z').toLocaleString(undefined, { timeZone: tz });
-    const cur = (r.currency||'usd').toUpperCase();
-    const price = (typeof r.price_cents !== 'undefined' && r.price_cents !== null) ? (Number(r.price_cents)/100).toFixed(2) + ' ' + cur : '';
-    const color = pickClassColor(r.class_id, r.class_color);
-    const dot = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+color+';margin-right:6px;vertical-align:middle;"></span>';
-    const priceLine = price ? ('<div><small>Price: '+ price +'</small></div>') : '';
-    $root.find('.cfp-cal-selected').html('<div>'+dot+'<strong>'+ (r.class_title||'') +'</strong><br><small>'+ dt + (r.location_name?(' — '+r.location_name):'') +'</small>'+priceLine+'</div>');
+    // Toggle selection for multi-select
+    let sel = $root.data('selected') || [];
+    const already = sel.includes(r.id);
+    if (already) {
+      sel = sel.filter(x => x !== r.id);
+    } else {
+      sel.push(r.id);
+    }
+    $root.data('selected', sel);
+    
+    // Update visual selection state for this schedule id
+    const selector = '[data-sid="'+r.id+'"]';
+    $root.find('.cfp-cal-event'+selector+', .cfp-agenda-item'+selector).toggleClass('selected', !already);
+    
+    // Update the selected classes display
+    updateSelectedClassesDisplay($root, sel);
+    
+    // Update credits section based on selection
+    updateCreditsSection($root);
+    
+    // Show bulk book button
+    ensureBulkActions($root);
   }
+  
+  function updateSelectedClassesDisplay($root, selectedIds) {
+    const count = selectedIds.length;
+    const $selectedContainer = $root.find('.cfp-cal-selected');
+    const $selectedCount = $root.find('.cfp-selected-count');
+    
+    // Update count display
+    $selectedCount.text(count + ' selected');
+    
+    if (count === 0) {
+      // Show empty state
+      $selectedContainer.html(`
+        <div class="cfp-empty-selection">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <p>Click on classes in the calendar to select them</p>
+        </div>
+      `);
+      
+      // Update step indicator
+      $root.find('.cfp-step-indicator').removeClass('active completed');
+      $root.find('.cfp-step-indicator[data-step="1"]').addClass('active');
+    } else {
+      // Build list of selected classes
+      let html = '';
+      const schedules = $root.data('schedules') || [];
+      
+      selectedIds.forEach((id, index) => {
+        const schedule = schedules.find(s => s.id === id);
+        if (schedule) {
+          const tz = schedule.tz || CFP_DATA.businessTimezone || 'UTC';
+          const dt = new Date(schedule.start_time + 'Z').toLocaleString(undefined, { 
+            timeZone: tz,
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const cur = (schedule.currency||'usd').toUpperCase();
+          const price = (typeof schedule.price_cents !== 'undefined' && schedule.price_cents !== null) 
+            ? (Number(schedule.price_cents)/100).toFixed(2) + ' ' + cur 
+            : 'Free';
+          const color = pickClassColor(schedule.class_id, schedule.class_color);
+          
+          html += `
+            <div class="cfp-selected-pill" data-sid="${id}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #e5e7eb;border-left:4px solid ${color};border-radius:6px;background:#fff;">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};"></span>
+                <div style="display:flex;flex-direction:column;min-width:0;">
+                  <strong style="font-size:12px;color:#111827;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${schedule.class_title || 'Class'}</strong>
+                  <small style="color:#6b7280;font-size:12px;">${dt}${schedule.location_name ? (' — '+schedule.location_name) : ''}</small>
+                </div>
+              </div>
+              <button type="button" class="cfp-selected-remove" aria-label="Remove" title="Remove" style="border:none;background:transparent;cursor:pointer;color:#9ca3af;font-size:16px;line-height:1;padding:0 4px;">×</button>
+            </div>
+          `;
+        }
+      });
+      
+      $selectedContainer.html(html);
+      // Transform to vertical pills with remove controls
+      selectedIds.forEach((id, idx) => {
+        const s = schedules.find(x => x.id === id); if (!s) return;
+        const color = pickClassColor(s.class_id, s.class_color);
+        const $item = $selectedContainer.find('.cfp-selected-class-item').eq(idx);
+        $item.attr('data-sid', id)
+          .css({padding:'8px',border:'1px solid #e5e7eb',borderRadius:'6px',margin:'6px 0',background:'#fff'})
+          .removeClass('cfp-selected-class-item')
+          .addClass('cfp-selected-pill');
+        // Add remove button if missing
+        if ($item.find('.cfp-selected-remove').length===0) {
+          const $remove=$('<button type="button" class="cfp-selected-remove" aria-label="Remove" title="Remove">×</button>')
+            .css({border:'none',background:'transparent',cursor:'pointer',color:'#9ca3af',fontSize:'16px',lineHeight:'1',padding:'0 4px'});
+          $item.append($remove);
+        }
+        // Reinforce left border color
+        $item.css({borderLeft:'4px solid '+color});
+      });
+      
+      // Update step indicators - move to step 2 when classes are selected
+      $root.find('.cfp-step-indicator[data-step="1"]').removeClass('active').addClass('completed');
+      $root.find('.cfp-step-indicator[data-step="2"]').addClass('active');
+    }
+  }
+
+  // Remove selected pill handler
+  $(document).on('click', '.cfp-selected-remove', function(e){
+    e.preventDefault();
+    const $pill = $(this).closest('.cfp-selected-pill');
+    const sid = parseInt($pill.data('sid')||0,10);
+    // Find the calendar root container
+    const $root = $(this).closest('.cfp-calendar-booking');
+    if (!sid || !$root.length) return;
+    let sel = $root.data('selected') || [];
+    sel = sel.filter(x => x !== sid);
+    $root.data('selected', sel);
+    // Immediate UI feedback
+    $pill.remove();
+    // Update selection visuals on the calendar
+    const selector='[data-sid="'+sid+'"]';
+    $root.find('.cfp-cal-event'+selector+', .cfp-agenda-item'+selector).removeClass('selected');
+    // Re-render selected list to ensure consistency
+    updateSelectedClassesDisplay($root, sel);
+    // If none selected, remove bulk action button
+    if (sel.length===0) { $root.find('.cfp-book-selected').remove(); }
+  });
 
   async function createBooking($root) {
     const scheduleId = $root.data('selected-schedule');
-    const name = ($root.find('.cfp-name').val()||'').toString();
-    const email = ($root.find('.cfp-email').val()||'').toString();
-    const phone = ($root.find('.cfp-phone').val()||'').toString();
-    const password = ($root.find('.cfp-password').val()||'').toString();
+    let name = '', email = '', phone = '', password = '';
+    
+    // Only collect these fields if user is not logged in
+    if (!(CFP_DATA && CFP_DATA.isLoggedIn)) {
+      name = ($root.find('.cfp-name').val()||'').toString();
+      email = ($root.find('.cfp-email').val()||'').toString();
+      phone = ($root.find('.cfp-phone').val()||'').toString();
+      password = ($root.find('.cfp-password').val()||'').toString();
+    }
+    
     const sms_opt_in = $root.find('.cfp-sms-optin').is(':checked');
     const useCredits = (CFP_DATA && CFP_DATA.isLoggedIn && CFP_DATA.userCredits > 0) ? $root.find('.cfp-use-credits').is(':checked') : false;
     const $msg = $root.find('.cfp-msg').empty();
@@ -404,7 +544,33 @@
   $(document).on('click', '.cfp-cal-next', function(){ const $r=$(this).closest('.cfp-calendar-booking'); const ref=new Date($r.data('refDate')||new Date()); const view=$r.data('view')||'month'; if(view==='week'||view==='agenda') ref.setDate(ref.getDate()+7); else ref.setMonth(ref.getMonth()+1); loadMonth($r, ref); });
   $(document).on('click', '.cfp-calendar-booking .cfp-view', function(){ const $r=$(this).closest('.cfp-calendar-booking'); $r.data('view', $(this).data('view')); loadMonth($r, new Date($r.data('refDate')||new Date())); });
   $(document).on('change', '.cfp-calendar-booking .cfp-filter-class, .cfp-calendar-booking .cfp-filter-location', function(){ const $r=$(this).closest('.cfp-calendar-booking'); loadMonth($r, new Date($r.data('refDate')||new Date())); });
-  $(document).on('click', '.cfp-calendar-booking .cfp-book', function(){ createBooking($(this).closest('.cfp-calendar-booking')); });
+  $(document).on('click', '.cfp-calendar-booking .cfp-book, .cfp-calendar-booking .cfp-book-primary', function(){ 
+    const $root = $(this).closest('.cfp-calendar-booking');
+    const sel = $root.data('selected') || [];
+    if (sel.length === 0) {
+      $root.find('.cfp-msg').text('Please select at least one class from the calendar').css('color', '#dc2626');
+      return;
+    }
+    if (sel.length === 1) {
+      $root.data('selected-schedule', sel[0]);
+      createBooking($root);
+    } else {
+      createBulkBooking($root);
+    }
+  });
+  $(document).on('click', '.cfp-calendar-booking .cfp-book-selected', function(){ createBulkBooking($(this).closest('.cfp-calendar-booking')); });
+  
+  // Handle package view button
+  $(document).on('click', '.cfp-view-packages', function(e) {
+    e.preventDefault();
+    // Check if there's a packages page URL in CFP_DATA
+    if (CFP_DATA && CFP_DATA.packagesUrl) {
+      window.open(CFP_DATA.packagesUrl, '_blank');
+    } else {
+      // Fallback - try to find a packages page
+      window.open('/packages', '_blank');
+    }
+  });
   $(document).on('click', '.cfp-calendar-booking .cfp-pay', function(){ confirmPay($(this).closest('.cfp-calendar-booking')); });
 
   async function fetchJsonSafe(url) {
@@ -467,6 +633,12 @@
       if ($r.hasClass('cfp-full-calendar')) {
         // Full calendar specific initialization
         $r.find('.cfp-cal-grid').removeClass('cfp-loading').html('<div style="text-align:center;padding:40px;">Loading calendar...</div>');
+        // Initialize empty state for selected classes
+        updateSelectedClassesDisplay($r, []);
+        // Initialize credits section
+        updateCreditsSection($r);
+        // Initialize book button state
+        ensureBulkActions($r);
       }
       // Handle UI based on login status and requirements
       try {
@@ -532,38 +704,33 @@
           // User is logged in
           $r.find('.cfp-password').closest('label').hide();
           
-          // Show credits checkbox only if user has credits
-          if (CFP_DATA && CFP_DATA.userCredits && CFP_DATA.userCredits > 0) {
-            const $creditsLabel = $r.find('.cfp-use-credits').closest('label, .cfp-checkbox-label');
-            $creditsLabel.show();
-            // Update the label to show how many credits they have
-            const $creditsText = $creditsLabel.find('span');
-            if ($creditsText.length) {
-              $creditsText.text('Use available credits (' + CFP_DATA.userCredits + ' available)');
-            }
-          }
+          // Update credits section based on user's credit balance
+          updateCreditsSection($r);
           
-          // For logged-in users, we could prefill their data
+          // For logged-in users, hide unnecessary fields
           if ($r.hasClass('cfp-full-calendar')) {
-            // Hide name and email fields for logged-in users as we already have their info
-            const $form = $r.find('.cfp-booking-form');
-            $form.find('.cfp-name').closest('label').hide();
-            $form.find('.cfp-email').closest('label').hide();
-            $form.find('.cfp-password').closest('label').hide();
+            // Hide entire Contact Information group for logged-in users
+            $r.find('.cfp-form-group').first().hide(); // Contact Information group
+            // Hide Account Options group for logged-in users
+            $r.find('.cfp-form-group').eq(1).hide(); // Account Options group
             
-            // Add a welcome message
-            const $sidebar = $r.find('.cfp-sidebar-card').last();
-            if (!$sidebar.find('.cfp-user-welcome').length && typeof CFP_DATA !== 'undefined') {
-              let welcomeMsg = 'Welcome back! Select a class to book.';
+            // Update the welcome message in the details section
+            const $detailsSection = $r.find('.cfp-details-section');
+            if (!$detailsSection.find('.cfp-user-welcome').length && typeof CFP_DATA !== 'undefined') {
+              let welcomeMsg = '<div class="cfp-user-welcome" style="background:#eff6ff;padding:14px;border-radius:8px;margin-bottom:20px;color:#1e40af;font-size:14px;line-height:1.5;">';
+              welcomeMsg += '<strong>Welcome back!</strong><br>';
+              welcomeMsg += 'Your account details will be used for this booking.';
               if (CFP_DATA.userCredits > 0) {
-                welcomeMsg += ' You have ' + CFP_DATA.userCredits + ' credit' + (CFP_DATA.userCredits > 1 ? 's' : '') + ' available.';
+                welcomeMsg += '<br>You have <strong>' + CFP_DATA.userCredits + ' credit' + (CFP_DATA.userCredits > 1 ? 's' : '') + '</strong> available.';
               }
-              $form.before('<div class="cfp-user-welcome" style="background:#eff6ff;padding:12px;border-radius:6px;margin-bottom:16px;color:#1e40af;">' + welcomeMsg + '</div>');
+              welcomeMsg += '</div>';
+              $detailsSection.find('.cfp-booking-form').before(welcomeMsg);
             }
           } else {
             // Small calendar - hide fields for logged-in users
             $r.find('.cfp-name').closest('label').hide();
             $r.find('.cfp-email').closest('label').hide();
+            $r.find('.cfp-password').closest('label').hide();
           }
         }
       } catch(e){ console.error('Error setting up auth UI:', e); }
@@ -573,6 +740,96 @@
       }); 
     });
   }); 
+
+  function updateCreditsSection($root) {
+    const $creditsContainer = $root.find('.cfp-credits-container');
+    const $hasCredits = $creditsContainer.find('.cfp-has-credits');
+    const $noCredits = $creditsContainer.find('.cfp-no-credits');
+    const selectedCount = ($root.data('selected') || []).length;
+    
+    if (CFP_DATA && CFP_DATA.isLoggedIn) {
+      const userCredits = CFP_DATA.userCredits || 0;
+      
+      if (userCredits > 0) {
+        // User has credits
+        $hasCredits.show();
+        $noCredits.hide();
+        
+        // Update credit count
+        $hasCredits.find('.cfp-credit-count').text(userCredits);
+        
+        // Update coverage info
+        if (selectedCount > 0) {
+          let coverageText = '';
+          if (userCredits >= selectedCount) {
+            coverageText = '✓ Your credits will cover ' + (selectedCount === 1 ? 'this class' : 'all ' + selectedCount + ' selected classes');
+            $hasCredits.find('.cfp-credits-info').show().find('.cfp-credits-coverage').html('<span style="color:#059669;">' + coverageText + '</span>');
+          } else {
+            coverageText = '⚠ You have ' + userCredits + ' credit' + (userCredits === 1 ? '' : 's') + ' but need ' + selectedCount + ' for all selected classes';
+            $hasCredits.find('.cfp-credits-info').show().find('.cfp-credits-coverage').html('<span style="color:#ea580c;">' + coverageText + '</span>');
+          }
+        } else {
+          $hasCredits.find('.cfp-credits-info').hide();
+        }
+      } else {
+        // User has no credits - show upsell
+        $hasCredits.hide();
+        $noCredits.show();
+      }
+    } else {
+      // Not logged in - show payment option only
+      $hasCredits.hide();
+      $noCredits.show();
+      $noCredits.find('.cfp-package-upsell').hide(); // Hide upsell for non-logged users
+    }
+  }
+  
+  function ensureBulkActions($root){
+    // Update the main book button text based on selection
+    const sel = $root.data('selected') || [];
+    const $bookBtn = $root.find('.cfp-book-primary .cfp-button-text');
+    if (sel.length > 1) {
+      $bookBtn.text('Book ' + sel.length + ' Classes');
+    } else if (sel.length === 1) {
+      $bookBtn.text('Book This Class');
+    } else {
+      $bookBtn.text('Select Classes to Book');
+    }
+    
+    // Update step 3 when ready to book
+    if (sel.length > 0) {
+      const hasDetails = $root.find('.cfp-name').val() || $root.find('.cfp-email').val();
+      if (hasDetails) {
+        $root.find('.cfp-step-indicator[data-step="2"]').removeClass('active').addClass('completed');
+        $root.find('.cfp-step-indicator[data-step="3"]').addClass('active');
+      }
+    }
+  }
+
+  async function createBulkBooking($root){
+    const sel = $root.data('selected') || [];
+    const $msg = $root.find('.cfp-msg').empty();
+    if (!sel.length) { $msg.text('Select one or more sessions.'); return; }
+    
+    let name = '', email = '';
+    // Only collect these fields if user is not logged in
+    if (!(CFP_DATA && CFP_DATA.isLoggedIn)) {
+      name = ($root.find('.cfp-name').val()||'').toString();
+      email = ($root.find('.cfp-email').val()||'').toString();
+    }
+    
+    const useCredits = (CFP_DATA && CFP_DATA.isLoggedIn && CFP_DATA.userCredits > 0) ? $root.find('.cfp-use-credits').is(':checked') : false;
+    try{
+      const res = await fetch(CFP_DATA.restUrl + 'book_bulk', { method:'POST', headers: headers($root), body: JSON.stringify({ schedule_ids: sel, name, email, use_credits: useCredits }) });
+      const js = await res.json();
+      if (!res.ok){ $msg.text(js && js.message ? js.message : 'Bulk booking failed'); return; }
+      const ok = (js.items||[]).filter(i=>i.ok && (!i.amount_cents || i.amount_cents<=0)).length;
+      const pay = (js.requires_payment||[]).length;
+      if (ok>0) $msg.append('Booked '+ok+' with credits. ');
+      if (pay>0) $msg.append(pay+' require payment; please book those individually.');
+      if (ok>0) setTimeout(()=>window.location.reload(), 1200);
+    }catch(e){ $msg.text('Bulk booking failed'); }
+  }
   // Inject legend containers and initial load handled above in loadMonth
   // Color helpers
   const PALETTE = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#eab308','#22c55e','#f43f5e','#0ea5e9','#a855f7'];

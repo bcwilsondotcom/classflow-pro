@@ -142,45 +142,168 @@ class Shortcodes
                         <div class="cfp-agenda" style="display:none"></div>
                     </div>
                     <div class="cfp-full-cal-sidebar">
-                        <div class="cfp-sidebar-card">
-                            <h3>Selected Class</h3>
-                            <div class="cfp-cal-selected"></div>
-                        </div>
-                        <div class="cfp-sidebar-card">
-                            <h3>Quick Booking</h3>
-                            <form class="cfp-booking-form">
-                                <label>
-                                    Name
-                                    <input type="text" class="cfp-name" placeholder="Your full name" required>
-                                </label>
-                                <label>
-                                    Email
-                                    <input type="email" class="cfp-email" placeholder="your@email.com" required>
-                                </label>
-                                <label>
-                                    Phone
-                                    <input type="tel" class="cfp-phone" placeholder="(555) 123-4567">
-                                </label>
-                                <label>
-                                    Create password
-                                    <input type="password" class="cfp-password" autocomplete="new-password" placeholder="Set a password (optional)">
-                                </label>
-                                <label class="cfp-checkbox-label">
-                                    <input type="checkbox" class="cfp-sms-optin">
-                                    <span>Send me text messages about my bookings (optional)</span>
-                                </label>
-                                
-                                <label class="cfp-checkbox-label">
-                                    <input type="checkbox" class="cfp-use-credits">
-                                    <span>Use available credits</span>
-                                </label>
-                                <button type="button" class="cfp-book">Book This Class</button>
-                            </form>
-                            <div class="cfp-payment" style="display:none">
-                                <h4>Payment Details</h4>
-                                <div class="cfp-card-element"></div>
-                                <button class="cfp-pay">Complete Payment</button>
+                        <!-- Step Indicator -->
+                        <div class="cfp-booking-steps">
+                            <div class="cfp-step-indicator active" data-step="1">
+                                <span class="cfp-step-number">1</span>
+                                <span class="cfp-step-label">Select Classes</span>
                             </div>
+                            <div class="cfp-step-connector"></div>
+                            <div class="cfp-step-indicator" data-step="2">
+                                <span class="cfp-step-number">2</span>
+                                <span class="cfp-step-label">Your Details</span>
+                            </div>
+                            <div class="cfp-step-connector"></div>
+                            <div class="cfp-step-indicator" data-step="3">
+                                <span class="cfp-step-number">3</span>
+                                <span class="cfp-step-label">Confirm</span>
+                            </div>
+                        </div>
+
+                        <!-- Selected Classes Section -->
+                        <div class="cfp-sidebar-section cfp-selected-section">
+                            <div class="cfp-section-header">
+                                <h3>Selected Classes</h3>
+                                <span class="cfp-selected-count">0 selected</span>
+                            </div>
+                            <div class="cfp-cal-selected">
+                                <div class="cfp-empty-selection">
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <p>Click on classes in the calendar to select them</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Booking Details Section -->
+                        <div class="cfp-sidebar-section cfp-details-section">
+                            <div class="cfp-section-header">
+                                <h3>Booking Details</h3>
+                            </div>
+                            <form class="cfp-booking-form">
+                                <!-- Contact Information Group -->
+                                <div class="cfp-form-group">
+                                    <h4 class="cfp-form-group-title">Contact Information</h4>
+                                    <div class="cfp-input-wrapper">
+                                        <label for="cfp-name">Full Name</label>
+                                        <input type="text" id="cfp-name" class="cfp-name" placeholder="John Doe" required>
+                                    </div>
+                                    <div class="cfp-input-wrapper">
+                                        <label for="cfp-email">Email Address</label>
+                                        <input type="email" id="cfp-email" class="cfp-email" placeholder="john@example.com" required>
+                                    </div>
+                                    <div class="cfp-input-wrapper">
+                                        <label for="cfp-phone">Phone Number <span class="cfp-optional">(optional)</span></label>
+                                        <input type="tel" id="cfp-phone" class="cfp-phone" placeholder="(555) 123-4567">
+                                    </div>
+                                </div>
+
+                                <!-- Account Options Group -->
+                                <div class="cfp-form-group">
+                                    <h4 class="cfp-form-group-title">Account Options</h4>
+                                    <div class="cfp-input-wrapper cfp-password-wrapper">
+                                        <label for="cfp-password">Password <span class="cfp-optional">(optional)</span></label>
+                                        <input type="password" id="cfp-password" class="cfp-password" autocomplete="new-password" placeholder="Create account password">
+                                        <small class="cfp-help-text">Create a password to save your booking history</small>
+                                    </div>
+                                </div>
+
+                                <!-- Payment Options Group -->
+                                <div class="cfp-form-group cfp-payment-options-group">
+                                    <h4 class="cfp-form-group-title">Payment Method</h4>
+                                    
+                                    <!-- Credits Section -->
+                                    <div class="cfp-credits-section">
+                                        <!-- Will be dynamically populated based on user credits -->
+                                        <div class="cfp-credits-container">
+                                            <!-- For users with credits -->
+                                            <div class="cfp-has-credits" style="display:none;">
+                                                <label class="cfp-checkbox-label cfp-styled-checkbox cfp-credits-available">
+                                                    <input type="checkbox" class="cfp-use-credits" checked>
+                                                    <span class="cfp-checkbox-custom"></span>
+                                                    <span class="cfp-checkbox-text">
+                                                        <strong>Use Class Credits</strong>
+                                                        <small class="cfp-credits-balance">You have <span class="cfp-credit-count">0</span> credits available</small>
+                                                    </span>
+                                                </label>
+                                                <div class="cfp-credits-info">
+                                                    <p class="cfp-credits-coverage"></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- For users without credits -->
+                                            <div class="cfp-no-credits" style="display:none;">
+                                                <div class="cfp-package-upsell">
+                                                    <div class="cfp-upsell-badge">Save Money!</div>
+                                                    <h5>Get Better Value with a Package</h5>
+                                                    <p>Purchase a class package and save up to 20% on your bookings</p>
+                                                    <button type="button" class="cfp-view-packages">
+                                                        <span>View Package Options</span>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                <div class="cfp-pay-option">
+                                                    <label class="cfp-checkbox-label cfp-styled-checkbox">
+                                                        <input type="radio" name="payment_method" value="card" checked>
+                                                        <span class="cfp-checkbox-custom"></span>
+                                                        <span class="cfp-checkbox-text">
+                                                            <strong>Pay with Card</strong>
+                                                            <small>One-time payment for selected classes</small>
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- SMS Notifications -->
+                                    <div class="cfp-notifications-section">
+                                        <label class="cfp-checkbox-label cfp-styled-checkbox">
+                                            <input type="checkbox" class="cfp-sms-optin">
+                                            <span class="cfp-checkbox-custom"></span>
+                                            <span class="cfp-checkbox-text">
+                                                <strong>SMS Reminders</strong>
+                                                <small>Get text reminders 24 hours before your class</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Action Button -->
+                                <div class="cfp-form-actions">
+                                    <button type="button" class="cfp-book cfp-book-primary">
+                                        <span class="cfp-button-text">Proceed to Booking</span>
+                                        <svg class="cfp-button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            <polyline points="12 5 19 12 12 19"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </form>
+                            
+                            <!-- Payment Section (Hidden by default) -->
+                            <div class="cfp-payment" style="display:none">
+                                <div class="cfp-payment-header">
+                                    <h4>Payment Information</h4>
+                                    <span class="cfp-payment-amount"></span>
+                                </div>
+                                <div class="cfp-card-element"></div>
+                                <button class="cfp-pay cfp-pay-button">
+                                    <span>Complete Payment</span>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <!-- Messages -->
                             <div class="cfp-msg" aria-live="polite"></div>
                         </div>
                     </div>
