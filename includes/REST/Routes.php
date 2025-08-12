@@ -455,6 +455,7 @@ class Routes
 
     public static function book_bulk(WP_REST_Request $req)
     {
+        global $wpdb;
         $data = $req->get_json_params();
         $ids = $data['schedule_ids'] ?? [];
         if (!is_array($ids) || empty($ids)) return new WP_Error('cfp_invalid_request', __('Missing schedule_ids', 'classflow-pro'), ['status' => 400]);
@@ -491,13 +492,44 @@ class Routes
                 $paid[] = [ 'schedule_id' => $sid, 'booking_id' => (int)$res['booking_id'], 'amount_cents' => (int)$res['amount_cents'], 'currency' => $res['currency'] ?? 'usd' ];
             }
         }
-        // For now: if any require payment, return them for individual checkout (credits-only bulk supported)
-        return rest_ensure_response([
-            'ok' => true,
-            'items' => $results,
-            'requires_payment' => $paid,
-            'message' => empty($paid) ? __('All selected sessions booked using credits.', 'classflow-pro') : __('Some sessions require payment; please book those individually.', 'classflow-pro')
-        ]);
+        // If any require payment, create a single Checkout Session with multiple line items (platform-level)
+        if (!empty($paid)) {
+            // Build line items
+            $line_items = [];
+            $booking_ids = [];
+            $schedules_tbl = $wpdb->prefix . 'cfp_schedules';
+            foreach ($paid as $p) {
+                $bid = (int)$p['booking_id'];
+                $booking_ids[] = $bid;
+                // Fetch schedule to build description
+                $sch = $wpdb->get_row($wpdb->prepare("SELECT class_id, start_time, location_id FROM $schedules_tbl WHERE id = (SELECT schedule_id FROM {$wpdb->prefix}cfp_bookings WHERE id=%d)", $bid), ARRAY_A);
+                $class_title = \ClassFlowPro\Utils\Entities::class_name((int)($sch['class_id'] ?? 0));
+                $desc = $class_title . ' — ' . gmdate('Y-m-d H:i', strtotime($sch['start_time'] ?? '')) . ' UTC';
+                $line_items[] = [
+                    'amount_cents' => (int)$p['amount_cents'],
+                    'currency' => $p['currency'] ?? 'usd',
+                    'name' => $class_title ?: 'Class',
+                    'description' => $desc,
+                ];
+            }
+            $default_success = add_query_arg(['cfp_checkout' => 'success'], home_url('/'));
+            $default_cancel = add_query_arg(['cfp_checkout' => 'cancel'], home_url('/'));
+            $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session_multi([
+                'line_items' => $line_items,
+                'success_url' => $default_success,
+                'cancel_url' => $default_cancel,
+                'booking_ids' => $booking_ids,
+            ]);
+            if (!is_wp_error($session)) {
+                return rest_ensure_response([
+                    'ok' => true,
+                    'items' => $results,
+                    'requires_payment' => $paid,
+                    'checkout' => $session,
+                ]);
+            }
+        }
+        return rest_ensure_response(['ok' => true, 'items' => $results]);
     }
 
     public static function private_request(WP_REST_Request $req)

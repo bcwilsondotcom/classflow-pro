@@ -12,6 +12,26 @@
     return url + (url.indexOf('?')>=0 ? '&' : '?') + qs;
   }
 
+  // Remove selected pill handler (delegated)
+  $(document).on('click', '.cfp-selected-remove', function(e){
+    e.preventDefault();
+    const $pill = $(this).closest('.cfp-selected-pill');
+    const sid = parseInt($pill.data('sid')||0,10);
+    const $root = $(this).closest('.cfp-calendar-booking');
+    if (!sid || !$root.length) return;
+    let sel = $root.data('selected') || [];
+    sel = sel.filter(x => x !== sid);
+    $root.data('selected', sel);
+    // Remove pill immediately
+    $pill.remove();
+    // Clear selection highlight
+    const selector='[data-sid="'+sid+'"]';
+    $root.find('.cfp-cal-event'+selector+', .cfp-agenda-item'+selector).removeClass('selected').css('box-shadow','');
+    // Re-render panel to keep consistent if multiple
+    updateSelectedClassesDisplay($root, sel);
+    if (sel.length===0) { $root.find('.cfp-book-selected').remove(); }
+  });
+
   async function loadMonth($root, refDate) {
     $root.data('refDate', refDate.toISOString());
     const classId = $root.find('.cfp-filter-class').val() || $root.data('class-id') || '';
@@ -120,6 +140,7 @@
           const styles = styleForColor(color);
           const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+'">'+label+'</div>')
             .attr('data-sid', r.id)
+            .attr('data-color', color)
             .css(styles)
             .on('click', () => selectSchedule($root, r));
           cell.append(ev);
@@ -155,10 +176,12 @@
       dayEvents.slice(0, 3).forEach(r => {
         const tz = r.tz || CFP_DATA.businessTimezone || 'UTC';
         const t = formatTimeLocal(r.start_time, tz);
+        const label = t + ' • ' + (r.class_title||'');
         const color = pickClassColor(r.class_id, r.class_color);
         const styles = styleForColor(color);
-        const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+' at '+t+'">'+t+' '+( r.class_title||'')+'</div>')
+        const ev = $('<div class="cfp-cal-event" title="'+(r.class_title||'')+'">'+label+'</div>')
           .attr('data-sid', r.id)
+          .attr('data-color', color)
           .css(styles)
           .on('click', () => selectSchedule($root, r));
         cell.append(ev);
@@ -177,33 +200,6 @@
     for (let i=0; i<remainingCells; i++) {
       $grid.append('<div class="cfp-cal-cell cfp-cal-empty"></div>');
     }
-  }
-
-  function getStripe() { if (!window.Stripe || !CFP_DATA.stripePublishableKey) return null; if (!window.__cfpStripe) window.__cfpStripe = Stripe(CFP_DATA.stripePublishableKey); return window.__cfpStripe; }
-
-  function selectSchedule($root, r) {
-    // Toggle selection for multi-select
-    let sel = $root.data('selected') || [];
-    const already = sel.includes(r.id);
-    if (already) {
-      sel = sel.filter(x => x !== r.id);
-    } else {
-      sel.push(r.id);
-    }
-    $root.data('selected', sel);
-    
-    // Update visual selection state for this schedule id
-    const selector = '[data-sid="'+r.id+'"]';
-    $root.find('.cfp-cal-event'+selector+', .cfp-agenda-item'+selector).toggleClass('selected', !already);
-    
-    // Update the selected classes display
-    updateSelectedClassesDisplay($root, sel);
-    
-    // Update credits section based on selection
-    updateCreditsSection($root);
-    
-    // Show bulk book button
-    ensureBulkActions($root);
   }
   
   function updateSelectedClassesDisplay($root, selectedIds) {
@@ -232,7 +228,7 @@
       $root.find('.cfp-step-indicator').removeClass('active completed');
       $root.find('.cfp-step-indicator[data-step="1"]').addClass('active');
     } else {
-      // Build list of selected classes
+      // Build list of selected classes as HTML string
       let html = '';
       const schedules = $root.data('schedules') || [];
       
@@ -254,7 +250,7 @@
           const color = pickClassColor(schedule.class_id, schedule.class_color);
           
           html += `
-            <div class="cfp-selected-pill" data-sid="${id}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #e5e7eb;border-left:4px solid ${color};border-radius:6px;background:#fff;">
+            <div class="cfp-selected-pill" data-sid="${id}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #e5e7eb;border-left:4px solid ${color};border-radius:6px;background:#fff;margin-bottom:8px;">
               <div style="display:flex;align-items:center;gap:8px;min-width:0;">
                 <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};"></span>
                 <div style="display:flex;flex-direction:column;min-width:0;">
@@ -262,31 +258,13 @@
                   <small style="color:#6b7280;font-size:12px;">${dt}${schedule.location_name ? (' — '+schedule.location_name) : ''}</small>
                 </div>
               </div>
-              <button type="button" class="cfp-selected-remove" aria-label="Remove" title="Remove" style="border:none;background:transparent;cursor:pointer;color:#9ca3af;font-size:16px;line-height:1;padding:0 4px;">×</button>
+              <button type="button" class="cfp-selected-remove" aria-label="Remove" title="Remove" style="border:none;background:transparent;cursor:pointer;color:#9ca3af;font-size:20px;line-height:1;padding:4px 8px;font-weight:300;">&times;</button>
             </div>
           `;
         }
       });
       
       $selectedContainer.html(html);
-      // Transform to vertical pills with remove controls
-      selectedIds.forEach((id, idx) => {
-        const s = schedules.find(x => x.id === id); if (!s) return;
-        const color = pickClassColor(s.class_id, s.class_color);
-        const $item = $selectedContainer.find('.cfp-selected-class-item').eq(idx);
-        $item.attr('data-sid', id)
-          .css({padding:'8px',border:'1px solid #e5e7eb',borderRadius:'6px',margin:'6px 0',background:'#fff'})
-          .removeClass('cfp-selected-class-item')
-          .addClass('cfp-selected-pill');
-        // Add remove button if missing
-        if ($item.find('.cfp-selected-remove').length===0) {
-          const $remove=$('<button type="button" class="cfp-selected-remove" aria-label="Remove" title="Remove">×</button>')
-            .css({border:'none',background:'transparent',cursor:'pointer',color:'#9ca3af',fontSize:'16px',lineHeight:'1',padding:'0 4px'});
-          $item.append($remove);
-        }
-        // Reinforce left border color
-        $item.css({borderLeft:'4px solid '+color});
-      });
       
       // Update step indicators - move to step 2 when classes are selected
       $root.find('.cfp-step-indicator[data-step="1"]').removeClass('active').addClass('completed');
@@ -294,27 +272,36 @@
     }
   }
 
-  // Remove selected pill handler
-  $(document).on('click', '.cfp-selected-remove', function(e){
-    e.preventDefault();
-    const $pill = $(this).closest('.cfp-selected-pill');
-    const sid = parseInt($pill.data('sid')||0,10);
-    // Find the calendar root container
-    const $root = $(this).closest('.cfp-calendar-booking');
-    if (!sid || !$root.length) return;
+  // Handle selecting/deselecting a schedule across views
+  function selectSchedule($root, r) {
+    // Toggle selection for multi-select
     let sel = $root.data('selected') || [];
-    sel = sel.filter(x => x !== sid);
+    const already = sel.includes(r.id);
+    if (already) {
+      sel = sel.filter(x => x !== r.id);
+    } else {
+      sel.push(r.id);
+    }
     $root.data('selected', sel);
-    // Immediate UI feedback
-    $pill.remove();
-    // Update selection visuals on the calendar
-    const selector='[data-sid="'+sid+'"]';
-    $root.find('.cfp-cal-event'+selector+', .cfp-agenda-item'+selector).removeClass('selected');
-    // Re-render selected list to ensure consistency
+    
+    // Update visual selection state for this schedule id
+    const selector = '[data-sid="'+r.id+'"]';
+    const $targets = $root.find('.cfp-cal-event'+selector+', .cfp-agenda-item'+selector);
+    $targets.toggleClass('selected', !already);
+    // Colored glow to indicate selection
+    const hex = $targets.first().attr('data-color') || pickClassColor(r.class_id, r.class_color);
+    try {
+      const rgb = hexToRgb(hex);
+      const glow = !already ? ('0 0 0 2px rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.35), 0 0 8px rgba('+rgb.r+','+rgb.g+','+rgb.b+',0.25)') : '';
+      $targets.css('box-shadow', glow);
+    } catch(e) {}
+    
+    // Update the selected classes display and related UI
     updateSelectedClassesDisplay($root, sel);
-    // If none selected, remove bulk action button
-    if (sel.length===0) { $root.find('.cfp-book-selected').remove(); }
-  });
+    updateCreditsSection($root);
+    ensureBulkActions($root);
+  }
+
 
   async function createBooking($root) {
     const scheduleId = $root.data('selected-schedule');
@@ -540,6 +527,33 @@
     });
   }
 
+  // Handler for removing selected classes
+  $(document).on('click', '.cfp-remove-btn', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const $btn = $(this);
+    const scheduleId = parseInt($btn.attr('data-schedule-id'), 10);
+    const $root = $btn.closest('.cfp-calendar-booking');
+    
+    if (!scheduleId || !$root.length) return;
+    
+    // Get current selection and remove this ID
+    let selected = $root.data('selected') || [];
+    selected = selected.filter(id => id !== scheduleId);
+    $root.data('selected', selected);
+    
+    // Update visual selection on calendar
+    $root.find('[data-sid="' + scheduleId + '"]').removeClass('selected');
+    
+    // Re-render the selected classes display
+    updateSelectedClassesDisplay($root, selected);
+    
+    // Update other UI elements
+    updateCreditsSection($root);
+    ensureBulkActions($root);
+  });
+  
   $(document).on('click', '.cfp-cal-prev', function(){ const $r=$(this).closest('.cfp-calendar-booking'); const ref=new Date($r.data('refDate')||new Date()); const view=$r.data('view')||'month'; if(view==='week'||view==='agenda') ref.setDate(ref.getDate()-7); else ref.setMonth(ref.getMonth()-1); loadMonth($r, ref); });
   $(document).on('click', '.cfp-cal-next', function(){ const $r=$(this).closest('.cfp-calendar-booking'); const ref=new Date($r.data('refDate')||new Date()); const view=$r.data('view')||'month'; if(view==='week'||view==='agenda') ref.setDate(ref.getDate()+7); else ref.setMonth(ref.getMonth()+1); loadMonth($r, ref); });
   $(document).on('click', '.cfp-calendar-booking .cfp-view', function(){ const $r=$(this).closest('.cfp-calendar-booking'); $r.data('view', $(this).data('view')); loadMonth($r, new Date($r.data('refDate')||new Date())); });
@@ -824,9 +838,11 @@
       const js = await res.json();
       if (!res.ok){ $msg.text(js && js.message ? js.message : 'Bulk booking failed'); return; }
       const ok = (js.items||[]).filter(i=>i.ok && (!i.amount_cents || i.amount_cents<=0)).length;
-      const pay = (js.requires_payment||[]).length;
       if (ok>0) $msg.append('Booked '+ok+' with credits. ');
-      if (pay>0) $msg.append(pay+' require payment; please book those individually.');
+      if (js.checkout && js.checkout.url) {
+        window.location.href = js.checkout.url;
+        return;
+      }
       if (ok>0) setTimeout(()=>window.location.reload(), 1200);
     }catch(e){ $msg.text('Bulk booking failed'); }
   }

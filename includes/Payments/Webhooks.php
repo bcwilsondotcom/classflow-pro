@@ -118,6 +118,48 @@ class Webhooks
             } catch (\Throwable $e) {
                 error_log('[CFP] notify booking_confirmed error: ' . $e->getMessage());
             }
+        } elseif (!empty($metadata['booking_ids'])) {
+            // Multi-booking payment: allocate amounts proportionally and confirm each booking
+            $ids = array_filter(array_map('intval', explode(',', (string)$metadata['booking_ids'])));
+            if ($ids) {
+                $bookings_tbl = $wpdb->prefix . 'cfp_bookings';
+                $rows = $wpdb->get_results('SELECT * FROM ' . $bookings_tbl . ' WHERE id IN (' . implode(',', array_map('intval', $ids)) . ')', ARRAY_A);
+                if ($rows) {
+                    $total_amount = isset($intent['amount_received']) ? (int)$intent['amount_received'] : (isset($intent['amount']) ? (int)$intent['amount'] : 0);
+                    $tax_total = isset($intent['amount_details']['amount_tax']) ? (int)$intent['amount_details']['amount_tax'] : 0;
+                    $sum = 0; foreach ($rows as $r) { $sum += (int)$r['amount_cents']; }
+                    if ($sum <= 0) { $sum = count($rows); }
+                    $remaining_amount = $total_amount; $remaining_tax = $tax_total;
+                    foreach ($rows as $idx => $row) {
+                        $share = ($idx === count($rows)-1) ? $remaining_amount : (int)round($total_amount * ((int)$row['amount_cents'] / $sum));
+                        $tax_share = ($idx === count($rows)-1) ? $remaining_tax : (int)round($tax_total * ((int)$row['amount_cents'] / $sum));
+                        $remaining_amount -= $share; $remaining_tax -= $tax_share;
+                        // Update booking
+                        $wpdb->update($bookings_tbl, [ 'status' => 'confirmed', 'payment_status' => 'succeeded', 'amount_cents' => $share, 'currency' => ($intent['currency'] ?? $row['currency']) ], ['id' => (int)$row['id']], ['%s','%s','%d','%s'], ['%d']);
+                        // Transaction per booking
+                        $transactions = $wpdb->prefix . 'cfp_transactions';
+                        $receipt_url = !empty($intent['charges']['data'][0]['receipt_url']) ? $intent['charges']['data'][0]['receipt_url'] : '';
+                        $wpdb->insert($transactions, [
+                            'user_id' => $row['user_id'],
+                            'booking_id' => $row['id'],
+                            'amount_cents' => $share,
+                            'currency' => ($intent['currency'] ?? $row['currency']),
+                            'type' => 'class_payment',
+                            'processor' => 'stripe',
+                            'processor_id' => $intent_id,
+                            'status' => 'succeeded',
+                            'tax_amount_cents' => $tax_share,
+                            'fee_amount_cents' => 0,
+                            'receipt_url' => $receipt_url,
+                        ], ['%d','%d','%d','%s','%s','%s','%s','%d','%d','%s']);
+                        try { QuickBooks::create_sales_receipt_for_booking((int)$row['id']); } catch (\Throwable $e) {}
+                    }
+                    // Notifications
+                    foreach ($rows as $row) {
+                        try { \ClassFlowPro\Notifications\Mailer::booking_confirmed((int)$row['id']); } catch (\Throwable $e) {}
+                    }
+                }
+            }
         } elseif (!empty($metadata['type']) && $metadata['type'] === 'package_purchase') {
             // Grant credits to user based on metadata
             $user_id = (int)($metadata['user_id'] ?? 0);
