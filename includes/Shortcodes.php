@@ -72,10 +72,7 @@ class Shortcodes
                         Email Address
                         <input type="email" class="cfp-email" placeholder="your@email.com" required>
                     </label>
-                    <label>
-                        Promo Code
-                        <input type="text" class="cfp-coupon" placeholder="Optional">
-                    </label>
+                    
                     <label style="display: flex; align-items: center; font-weight: normal;">
                         <input type="checkbox" class="cfp-use-credits">
                         <span>Use available credits</span>
@@ -170,10 +167,7 @@ class Shortcodes
                                     <input type="checkbox" class="cfp-sms-optin">
                                     <span>Send me text messages about my bookings (optional)</span>
                                 </label>
-                                <label>
-                                    Promo Code
-                                    <input type="text" class="cfp-coupon" placeholder="Enter code">
-                                </label>
+                                
                                 <label class="cfp-checkbox-label">
                                     <input type="checkbox" class="cfp-use-credits">
                                     <span>Use available credits</span>
@@ -205,7 +199,7 @@ class Shortcodes
         echo '<div class="cfp-step-booking" data-nonce="' . esc_attr($nonce) . '">';
         echo '<div class="cfp-step cfp-step-1"><h4>Step 1 — Choose</h4><label>Location <select class="cfp-loc"><option value="">All</option></select></label> <label>Class <select class="cfp-class"><option value="">All</option></select></label> <label>Date <input type="date" class="cfp-date"></label> <button class="button cfp-next-1">Next</button></div>';
         echo '<div class="cfp-step cfp-step-2" style="display:none"><h4>Step 2 — Select Time</h4><div class="cfp-times"></div><button class="button cfp-prev-2">Back</button> <button class="button cfp-next-2">Next</button></div>';
-        echo '<div class="cfp-step cfp-step-3" style="display:none"><h4>Step 3 — Your Details</h4><label>Name <input type="text" class="cfp-name"></label> <label>Email <input type="email" class="cfp-email" autocomplete="email"></label> <label>Phone <input type="tel" class="cfp-phone" autocomplete="tel"></label> <div class="cfp-account-fields" style="display:block;margin:8px 0;"><label>Create password <input type="password" class="cfp-password" autocomplete="new-password"></label> <small style="display:block;color:#64748b;">If you don\'t have an account, we\'ll create one using this password.</small> <label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> Send me text messages about my bookings (optional)</label></div> <label>Coupon <input type="text" class="cfp-coupon"></label> <label><input type="checkbox" class="cfp-use-credits"> Use credits</label> <button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button></div>';
+        echo '<div class="cfp-step cfp-step-3" style="display:none"><h4>Step 3 — Your Details</h4><label>Name <input type="text" class="cfp-name"></label> <label>Email <input type="email" class="cfp-email" autocomplete="email"></label> <label>Phone <input type="tel" class="cfp-phone" autocomplete="tel"></label> <div class="cfp-account-fields" style="display:block;margin:8px 0;"><label>Create password <input type="password" class="cfp-password" autocomplete="new-password"></label> <small style="display:block;color:#64748b;">If you don\'t have an account, we\'ll create one using this password.</small> <label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> Send me text messages about my bookings (optional)</label></div> <label><input type="checkbox" class="cfp-use-credits"> Use credits</label> <button class="button cfp-prev-3">Back</button> <button class="button button-primary cfp-next-3">Review</button></div>';
         echo '<div class="cfp-step cfp-step-4" style="display:none"><h4>Step 4 — Payment</h4><div class="cfp-review"></div><div class="cfp-payment" style="display:none"><div class="cfp-card-element"></div></div><button class="button cfp-prev-4">Back</button> <button class="button button-primary cfp-pay">Pay</button><div class="cfp-msg" aria-live="polite"></div></div>';
         echo '</div>';
         return ob_get_clean();

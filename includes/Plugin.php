@@ -71,7 +71,8 @@ class Plugin
             'businessCountry' => Admin\Settings::get('business_country', 'US'),
             'siteName' => wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES),
             'businessTimezone' => Admin\Settings::get('business_timezone', (function_exists('wp_timezone_string') ? wp_timezone_string() : 'UTC')),
-            'useStripeCheckout' => (bool) Admin\Settings::get('stripe_use_checkout', 0),
+            // Always use Stripe Checkout for paid flows
+            'useStripeCheckout' => true,
             'intakePageUrl' => esc_url_raw(Admin\Settings::get('intake_page_url', '')),
             'isLoggedIn' => is_user_logged_in(),
             'requireLoginToBook' => (bool) Admin\Settings::get('require_login_to_book', 0),

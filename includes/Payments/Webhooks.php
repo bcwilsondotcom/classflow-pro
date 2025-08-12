@@ -79,17 +79,24 @@ class Webhooks
         $tax_cents = isset($intent['amount_details']['amount_tax']) ? (int)$intent['amount_details']['amount_tax'] : 0;
 
         if ($booking) {
+            // Determine final amount and currency from Stripe
+            $final_amount = isset($intent['amount_received']) ? (int)$intent['amount_received'] : (isset($intent['amount']) ? (int)$intent['amount'] : (int)$booking['amount_cents']);
+            $final_currency = !empty($intent['currency']) ? strtolower((string)$intent['currency']) : (string)$booking['currency'];
+
+            // Update booking with final amount/currency and status
             $wpdb->update($bookings, [
                 'status' => 'confirmed',
                 'payment_status' => 'succeeded',
-            ], ['id' => $booking['id']], ['%s','%s'], ['%d']);
+                'amount_cents' => $final_amount,
+                'currency' => $final_currency,
+            ], ['id' => $booking['id']], ['%s','%s','%d','%s'], ['%d']);
 
             $receipt_url = !empty($intent['charges']['data'][0]['receipt_url']) ? $intent['charges']['data'][0]['receipt_url'] : '';
             $wpdb->insert($transactions, [
                 'user_id' => $booking['user_id'],
                 'booking_id' => $booking['id'],
-                'amount_cents' => $booking['amount_cents'],
-                'currency' => $booking['currency'],
+                'amount_cents' => $final_amount,
+                'currency' => $final_currency,
                 'type' => 'class_payment',
                 'processor' => 'stripe',
                 'processor_id' => $intent_id,

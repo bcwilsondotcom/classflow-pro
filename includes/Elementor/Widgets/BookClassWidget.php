@@ -57,7 +57,7 @@ class BookClassWidget extends Widget_Base
         echo '<small style="display:block;color:#64748b;">' . esc_html__('If you don\'t have an account, we\'ll create one using this password.', 'classflow-pro') . '</small>';
         echo '<label style="display:block;margin-top:6px;"><input type="checkbox" class="cfp-sms-optin"> ' . esc_html__('Send me text messages about my bookings (optional)', 'classflow-pro') . '</label>';
         echo '</div>';
-        echo '<label>' . esc_html__('Coupon code', 'classflow-pro') . ' <input type="text" class="cfp-coupon" placeholder="WELCOME10"></label>';
+        
         echo '<label><input type="checkbox" class="cfp-use-credits"> ' . esc_html__('Use available credits', 'classflow-pro') . '</label>';
         echo '<button class="button button-primary cfp-book">' . esc_html__('Book Now', 'classflow-pro') . '</button>';
         echo '<div class="cfp-payment" style="display:none">';

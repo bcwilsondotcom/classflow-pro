@@ -24,7 +24,7 @@ class Settings
         // New full-screen Schedules calendar
         add_submenu_page('classflow-pro', __('Schedules', 'classflow-pro'), __('Schedules', 'classflow-pro'), 'manage_options', 'classflow-pro-schedules', ['ClassFlowPro\\Admin\\Schedules', 'render']);
         add_submenu_page('classflow-pro', __('Bookings', 'classflow-pro'), __('Bookings', 'classflow-pro'), 'manage_options', 'classflow-pro-bookings', ['ClassFlowPro\\Admin\\Bookings', 'render']);
-        add_submenu_page('classflow-pro', __('Coupons', 'classflow-pro'), __('Coupons', 'classflow-pro'), 'manage_options', 'classflow-pro-coupons', ['ClassFlowPro\\Admin\\Coupons', 'render']);
+        // Coupons removed: no submenu
         add_submenu_page('classflow-pro', __('QuickBooks Tools', 'classflow-pro'), __('QuickBooks Tools', 'classflow-pro'), 'manage_options', 'classflow-pro-qbtools', ['ClassFlowPro\\Admin\\QuickBooksTools', 'render']);
         // Schedules are now managed within Classes
         add_submenu_page('classflow-pro', __('Private Requests', 'classflow-pro'), __('Private Requests', 'classflow-pro'), 'manage_options', 'classflow-pro-privreq', ['ClassFlowPro\\Admin\\PrivateRequests', 'render']);
@@ -85,7 +85,7 @@ class Settings
         add_settings_field('stripe_enable_tax', __('Enable Stripe Tax', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_enable_tax']);
         add_settings_field('stripe_connect_enabled', __('Enable Stripe Connect', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_connect_enabled']);
         add_settings_field('platform_fee_percent', __('Platform Fee %', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_stripe', ['key' => 'platform_fee_percent', 'step' => '0.1']);
-        add_settings_field('stripe_use_checkout', __('Use Stripe Checkout', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_use_checkout']);
+        // Always use Stripe Checkout; remove toggle
         add_settings_field('stripe_allow_promo_codes', __('Allow Promotion Codes (Checkout)', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_allow_promo_codes']);
         add_settings_field('checkout_success_url', __('Checkout Success URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_success_url']);
         add_settings_field('checkout_cancel_url', __('Checkout Cancel URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_cancel_url']);
@@ -174,7 +174,7 @@ class Settings
         $output['stripe_enable_tax'] = isset($output['stripe_enable_tax']) ? 1 : 0;
         $output['stripe_connect_enabled'] = isset($output['stripe_connect_enabled']) ? 1 : 0;
         $output['platform_fee_percent'] = isset($output['platform_fee_percent']) ? floatval($output['platform_fee_percent']) : 0.0;
-        $output['stripe_use_checkout'] = isset($output['stripe_use_checkout']) ? 1 : 0;
+        // Always use Stripe Checkout; no option persisted
         $output['stripe_allow_promo_codes'] = isset($output['stripe_allow_promo_codes']) ? 1 : 0;
         foreach (['checkout_success_url','checkout_cancel_url'] as $uk) {
             if (isset($output[$uk])) {

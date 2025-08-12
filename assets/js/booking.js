@@ -114,7 +114,7 @@
     const scheduleId = $root.data('selected-schedule');
     const name = $root.find('.cfp-name').val();
     const email = $root.find('.cfp-email').val();
-    const couponCode = ($root.find('.cfp-coupon').val() || '').toString();
+    
     const phone = ($root.find('.cfp-phone').val() || '').toString();
     const password = ($root.find('.cfp-password').val() || '').toString();
     const sms_opt_in = $root.find('.cfp-sms-optin').is(':checked');
@@ -124,7 +124,7 @@
     const res = await fetch(CFP_DATA.restUrl + 'book', {
       method: 'POST',
       headers: createHeaders(),
-      body: JSON.stringify({ schedule_id: scheduleId, name, email, phone, password, sms_opt_in, use_credits: useCredits, coupon_code: couponCode })
+      body: JSON.stringify({ schedule_id: scheduleId, name, email, phone, password, sms_opt_in, use_credits: useCredits })
     });
     const data = await res.json();
     if (!res.ok) {

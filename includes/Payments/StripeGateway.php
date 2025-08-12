@@ -167,9 +167,8 @@ class StripeGateway
         if (Settings::get('stripe_enable_tax', 1)) {
             $params['automatic_tax[enabled]'] = 'true';
         }
-        if (Settings::get('stripe_allow_promo_codes', 0)) {
-            $params['allow_promotion_codes'] = 'true';
-        }
+        // Always allow promotion codes on Checkout
+        $params['allow_promotion_codes'] = 'true';
 
         // Stripe Connect split handled via payment_intent_data
         if (Settings::get('stripe_connect_enabled', 0) && $instructor_id) {

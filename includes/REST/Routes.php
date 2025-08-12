@@ -390,7 +390,7 @@ class Routes
             'user_id' => get_current_user_id() ?: null,
             'email' => sanitize_email($data['email'] ?? ''),
             'name' => sanitize_text_field($data['name'] ?? ''),
-            'coupon_code' => isset($data['coupon_code']) ? sanitize_text_field($data['coupon_code']) : null,
+            // Coupons removed; ignore coupon_code
         ];
 
         // Booking access policy
@@ -659,15 +659,10 @@ class Routes
         $buyer_name = sanitize_text_field($data['buyer_name'] ?? '');
         $email = sanitize_email($data['email'] ?? '');
         $user_id = get_current_user_id();
-        if (\ClassFlowPro\Admin\Settings::get('stripe_use_checkout', 0)) {
-            $session = \ClassFlowPro\Packages\Manager::create_checkout_session($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
-            if (is_wp_error($session)) return $session;
-            return rest_ensure_response($session);
-        } else {
-            $intent = \ClassFlowPro\Packages\Manager::create_purchase_intent($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
-            if (is_wp_error($intent)) return $intent;
-            return rest_ensure_response($intent);
-        }
+        // Always use Stripe Checkout for package purchases
+        $session = \ClassFlowPro\Packages\Manager::create_checkout_session($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
+        if (is_wp_error($session)) return $session;
+        return rest_ensure_response($session);
     }
 
     public static function me_overview(WP_REST_Request $req)

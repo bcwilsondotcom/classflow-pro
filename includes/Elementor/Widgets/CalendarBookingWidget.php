@@ -53,7 +53,7 @@ class CalendarBookingWidget extends Widget_Base
         echo '<div class="cfp-cal-selected"></div>';
         echo '<label>' . esc_html__('Your name', 'classflow-pro') . ' <input type="text" class="cfp-name"></label>';
         echo '<label>' . esc_html__('Email', 'classflow-pro') . ' <input type="email" class="cfp-email"></label>';
-        echo '<label>' . esc_html__('Coupon code', 'classflow-pro') . ' <input type="text" class="cfp-coupon" placeholder="WELCOME10"></label>';
+        
         echo '<label><input type="checkbox" class="cfp-use-credits"> ' . esc_html__('Use available credits', 'classflow-pro') . '</label>';
         echo '<button class="button button-primary cfp-book">' . esc_html__('Book', 'classflow-pro') . '</button>';
         echo '<div class="cfp-payment" style="display:none">';
