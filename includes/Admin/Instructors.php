@@ -131,7 +131,13 @@ class Instructors
             </select>
             <input type="number" step="1" min="0" id="cfp_payout_flat" name="payout_flat_cents" value="<?php echo esc_attr((string)$payout_flat_cents); ?>" class="small-text" />
         </td></tr>
-        <tr><th><label for="cfp_payout"><?php esc_html_e('Payout %','classflow-pro'); ?></label></th><td><input type="number" step="0.1" min="0" max="100" id="cfp_payout" name="payout_percent" value="<?php echo esc_attr((string)$payout); ?>"/></td></tr>
+        <tr><th><label for="cfp_payout"><?php esc_html_e('Payout %','classflow-pro'); ?></label></th><td>
+            <input type="number" step="0.01" min="0" max="100" id="cfp_payout" name="payout_percent" value="<?php echo esc_attr((string)$payout); ?>" class="small-text"/>
+            <p class="description"><?php esc_html_e('Percentage of payment the instructor receives (0-100%). Platform keeps the remainder.', 'classflow-pro'); ?></p>
+            <?php if (\ClassFlowPro\Admin\Settings::get('stripe_connect_enabled', 0)): ?>
+                <p class="description" style="color:#d63638;font-weight:600;"><?php esc_html_e('⚠️ Required for Stripe Connect payments. Must have Stripe Account ID configured below.', 'classflow-pro'); ?></p>
+            <?php endif; ?>
+        </td></tr>
         <tr><th><label for="cfp_qb_item"><?php esc_html_e('QuickBooks Item Ref','classflow-pro'); ?></label></th><td><input id="cfp_qb_item" name="qb_item_ref" value="<?php echo esc_attr($qb_item_ref); ?>" class="regular-text"/></td></tr>
         <tr><th><label for="cfp_qb_account"><?php esc_html_e('QuickBooks Account Ref','classflow-pro'); ?></label></th><td><input id="cfp_qb_account" name="qb_account_ref" value="<?php echo esc_attr($qb_account_ref); ?>" class="regular-text"/></td></tr>
         <tr><th><label for="cfp_stripe"><?php esc_html_e('Stripe Account','classflow-pro'); ?></label></th><td><input id="cfp_stripe" name="stripe_account_id" value="<?php echo esc_attr($stripe); ?>" class="regular-text"/></td></tr>
@@ -223,8 +229,29 @@ class Instructors
                 $(this).closest('.cfp-blackout-item').remove();
             });
             
+            // Validate payout percentage on change
+            $('#cfp_payout').on('change blur', function() {
+                var val = parseFloat($(this).val());
+                if (!isNaN(val)) {
+                    if (val < 0) {
+                        $(this).val(0);
+                        alert('<?php echo esc_js(__('Payout percentage cannot be negative', 'classflow-pro')); ?>');
+                    } else if (val > 100) {
+                        $(this).val(100);
+                        alert('<?php echo esc_js(__('Payout percentage cannot exceed 100%', 'classflow-pro')); ?>');
+                    }
+                }
+            });
+            
             // Serialize data before submit
             $('form').on('submit', function() {
+                // Final validation of payout percentage
+                var payout = parseFloat($('#cfp_payout').val());
+                if (!isNaN(payout) && (payout < 0 || payout > 100)) {
+                    alert('<?php echo esc_js(__('Error: Payout percentage must be between 0 and 100', 'classflow-pro')); ?>');
+                    $('#cfp_payout').focus();
+                    return false;
+                }
                 // Serialize weekly availability
                 var availability = {};
                 $('.cfp-day-availability').each(function() {
@@ -272,11 +299,36 @@ class Instructors
             if (!is_array($decoded)) $blackout_dates = '';
         }
         
+        // Validate payout percentage - CRITICAL for payment accuracy
+        $payout_percent = null;
+        if (isset($_POST['payout_percent']) && $_POST['payout_percent'] !== '') {
+            $payout_percent = (float)$_POST['payout_percent'];
+            
+            // Enforce valid range (0-100)
+            if ($payout_percent < 0 || $payout_percent > 100) {
+                wp_die(esc_html__('Error: Payout percentage must be between 0 and 100.', 'classflow-pro'));
+            }
+            
+            // Round to 2 decimal places for consistency
+            $payout_percent = round($payout_percent, 2);
+        }
+        
+        // Validate Stripe account if Connect is enabled and payout is set
+        $stripe_account_id = isset($_POST['stripe_account_id']) ? sanitize_text_field($_POST['stripe_account_id']) : null;
+        if (\ClassFlowPro\Admin\Settings::get('stripe_connect_enabled', 0) && $payout_percent !== null && !$stripe_account_id) {
+            // Log warning but don't block save - admin might add Stripe account later
+            \ClassFlowPro\Logging\Logger::log('warning', 'instructor_save', 'Instructor has payout percentage but no Stripe account', [
+                'instructor_id' => $id,
+                'name' => sanitize_text_field($_POST['name']??''),
+                'payout_percent' => $payout_percent
+            ]);
+        }
+        
         $data = [
             'name'=>sanitize_text_field($_POST['name']??''),
             'email'=>isset($_POST['email'])?sanitize_email($_POST['email']):null,
-            'payout_percent'=>isset($_POST['payout_percent'])?(float)$_POST['payout_percent']:null,
-            'stripe_account_id'=>isset($_POST['stripe_account_id'])?sanitize_text_field($_POST['stripe_account_id']):null,
+            'payout_percent'=>$payout_percent,
+            'stripe_account_id'=>$stripe_account_id,
             'bio'=>wp_kses_post($_POST['cfp_bio']??''),
             'availability_weekly'=>$availability_weekly ?: null,
             'blackout_dates'=>$blackout_dates ?: null,
@@ -286,7 +338,16 @@ class Instructors
             'qb_item_ref'=> isset($_POST['qb_item_ref']) ? sanitize_text_field($_POST['qb_item_ref']) : null,
             'qb_account_ref'=> isset($_POST['qb_account_ref']) ? sanitize_text_field($_POST['qb_account_ref']) : null,
         ];
-        if ($id) { $repo->update($id,$data); $msg='updated'; } else { $repo->create($data); $msg='created'; }
+        
+        // Log the save for audit trail
+        \ClassFlowPro\Logging\Logger::log('info', 'instructor_save', $id ? 'Instructor updated' : 'Instructor created', [
+            'instructor_id' => $id ?: 'new',
+            'name' => $data['name'],
+            'payout_percent' => $payout_percent,
+            'has_stripe_account' => !empty($stripe_account_id)
+        ]);
+        
+        if ($id) { $repo->update($id,$data); $msg='updated'; } else { $id = $repo->create($data); $msg='created'; }
         wp_safe_redirect(admin_url('admin.php?page=classflow-pro-instructors&message='.$msg)); exit;
     }
 

@@ -160,8 +160,7 @@ class Settings
         add_settings_field('stripe_secret_key', __('Secret Key', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_secret_key', 'help' => __('Starts with sk_live_ or sk_test_', 'classflow-pro')]);
         add_settings_field('stripe_webhook_secret', __('Webhook Secret', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_webhook_secret', 'help' => __('Webhook endpoint secret (whsec_...)', 'classflow-pro')]);
         add_settings_field('stripe_enable_tax', __('Enable Tax', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_enable_tax', 'help' => __('Let Stripe automatically calculate and collect taxes.', 'classflow-pro')]);
-        add_settings_field('stripe_connect_enabled', __('Enable Connect', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_connect_enabled', 'help' => __('Split payments between platform and connected accounts.', 'classflow-pro')]);
-        add_settings_field('platform_fee_percent', __('Platform Fee', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_stripe', ['key' => 'platform_fee_percent', 'step' => '0.1', 'help' => __('Percentage fee for platform (Connect only).', 'classflow-pro')]);
+        add_settings_field('stripe_connect_enabled', __('Enable Connect', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_connect_enabled', 'help' => __('Enable payment splitting with instructor connected accounts. Instructors receive their configured percentage, platform keeps the remainder.', 'classflow-pro')]);
         add_settings_field('stripe_allow_promo_codes', __('Promo Codes', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_stripe', ['key' => 'stripe_allow_promo_codes', 'help' => __('Allow customers to enter Stripe promotion codes.', 'classflow-pro')]);
         add_settings_field('checkout_success_url', __('Success URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_success_url', 'help' => __('Redirect after successful payment.', 'classflow-pro')]);
         add_settings_field('checkout_cancel_url', __('Cancel URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_cancel_url', 'help' => __('Redirect if checkout is cancelled.', 'classflow-pro')]);
@@ -494,6 +493,7 @@ class Settings
             'gmail_sender_email','gmail_sender_name','google_drive_folder_id','google_contacts_group',
             'zoom_account_id','zoom_client_id','zoom_client_secret',
             'qb_item_prefix','qb_default_item_name','qb_income_account_ref','qb_tax_code_ref'
+            // platform_fee_percent removed - using instructor payout_percent only
         ] as $k) {
             if (isset($output[$k])) {
                 $output[$k] = trim(wp_unslash($output[$k]));
@@ -509,7 +509,6 @@ class Settings
         $output['giftcard_bcc_admin'] = isset($output['giftcard_bcc_admin']) ? 1 : 0;
         $output['stripe_enable_tax'] = isset($output['stripe_enable_tax']) ? 1 : 0;
         $output['stripe_connect_enabled'] = isset($output['stripe_connect_enabled']) ? 1 : 0;
-        $output['platform_fee_percent'] = isset($output['platform_fee_percent']) ? floatval($output['platform_fee_percent']) : 0.0;
         // Always use Stripe Checkout; no option persisted
         $output['stripe_allow_promo_codes'] = isset($output['stripe_allow_promo_codes']) ? 1 : 0;
         foreach (['checkout_success_url','checkout_cancel_url'] as $uk) {

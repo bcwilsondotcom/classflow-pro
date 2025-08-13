@@ -43,6 +43,116 @@ class StripeGateway
         return $json;
     }
 
+    /**
+     * Calculate payment split between instructor and platform
+     * CRITICAL: This handles real money - must be 100% accurate
+     * 
+     * @param int $amount_cents Total payment amount in cents
+     * @param int $instructor_id Instructor post ID or database ID
+     * @return array|WP_Error Array with split details or error
+     */
+    private static function calculate_payment_split(int $amount_cents, int $instructor_id)
+    {
+        // Validate inputs
+        if ($amount_cents <= 0) {
+            return new WP_Error('invalid_amount', 'Payment amount must be positive');
+        }
+        
+        if ($instructor_id <= 0) {
+            return new WP_Error('invalid_instructor', 'Invalid instructor ID');
+        }
+        
+        // Check if instructor is from post meta (old system) or database
+        $stripe_account = null;
+        $payout_percent = null;
+        
+        // Try post meta first (for backward compatibility)
+        if (get_post_type($instructor_id) === 'cfp_instructor') {
+            $stripe_account = get_post_meta($instructor_id, '_cfp_stripe_account_id', true);
+            $payout_percent = get_post_meta($instructor_id, '_cfp_payout_percent', true);
+        }
+        
+        // If not found in post meta, check database
+        if (!$stripe_account) {
+            global $wpdb;
+            $table = $wpdb->prefix . 'cfp_instructors';
+            $instructor = $wpdb->get_row($wpdb->prepare(
+                "SELECT stripe_account_id, payout_percent FROM {$table} WHERE id = %d",
+                $instructor_id
+            ), ARRAY_A);
+            
+            if ($instructor) {
+                $stripe_account = $instructor['stripe_account_id'];
+                $payout_percent = $instructor['payout_percent'];
+            }
+        }
+        
+        // Validate Stripe account
+        if (!$stripe_account) {
+            return new WP_Error('no_stripe_account', 'Instructor does not have a Stripe Connect account configured');
+        }
+        
+        // Validate and sanitize payout percentage
+        if (!is_numeric($payout_percent)) {
+            \ClassFlowPro\Logging\Logger::log('error', 'payment_split', 'Invalid payout percentage', [
+                'instructor_id' => $instructor_id,
+                'payout_percent' => $payout_percent
+            ]);
+            return new WP_Error('invalid_payout_percent', 'Instructor payout percentage is not configured or invalid');
+        }
+        
+        $payout_percent = (float)$payout_percent;
+        
+        // Enforce percentage bounds (0-100)
+        if ($payout_percent < 0 || $payout_percent > 100) {
+            \ClassFlowPro\Logging\Logger::log('error', 'payment_split', 'Payout percentage out of bounds', [
+                'instructor_id' => $instructor_id,
+                'payout_percent' => $payout_percent
+            ]);
+            return new WP_Error('invalid_payout_percent', 'Payout percentage must be between 0 and 100');
+        }
+        
+        // Calculate amounts with proper rounding
+        // CRITICAL: Always round DOWN for instructor to avoid overpayment
+        $instructor_amount = (int)floor($amount_cents * ($payout_percent / 100.0));
+        
+        // Platform gets the remainder (this ensures no penny is lost)
+        $platform_amount = $amount_cents - $instructor_amount;
+        
+        // Sanity checks
+        if ($instructor_amount < 0) {
+            $instructor_amount = 0;
+        }
+        
+        if ($platform_amount < 0) {
+            \ClassFlowPro\Logging\Logger::log('error', 'payment_split', 'Platform amount negative - calculation error', [
+                'total' => $amount_cents,
+                'instructor_amount' => $instructor_amount,
+                'platform_amount' => $platform_amount
+            ]);
+            return new WP_Error('calculation_error', 'Payment split calculation error');
+        }
+        
+        // Verify total matches (critical for accounting)
+        if (($instructor_amount + $platform_amount) !== $amount_cents) {
+            \ClassFlowPro\Logging\Logger::log('error', 'payment_split', 'Split amounts do not match total', [
+                'total' => $amount_cents,
+                'instructor_amount' => $instructor_amount,
+                'platform_amount' => $platform_amount,
+                'sum' => ($instructor_amount + $platform_amount)
+            ]);
+            return new WP_Error('calculation_error', 'Payment split does not match total amount');
+        }
+        
+        return [
+            'stripe_account' => $stripe_account,
+            'payout_percent' => $payout_percent,
+            'instructor_amount' => $instructor_amount,
+            'platform_amount' => $platform_amount,
+            'total_amount' => $amount_cents
+        ];
+    }
+    
     public static function create_customer_if_needed(?string $email, ?string $name)
     {
         if (!$email) {
@@ -93,23 +203,21 @@ class StripeGateway
             }
         }
 
-        // Stripe Connect split: use instructor payout percent if available, otherwise platform fee percent
+        // Stripe Connect split: use instructor payout percent (platform keeps remainder)
         if (Settings::get('stripe_connect_enabled', 0) && $instructor_id) {
-            $acct = get_post_meta($instructor_id, '_cfp_stripe_account_id', true);
-            if ($acct) {
-                $payout_percent = get_post_meta($instructor_id, '_cfp_payout_percent', true);
-                $payout_percent = is_numeric($payout_percent) ? (float)$payout_percent : null;
-                if ($payout_percent === null) {
-                    // Fallback: derive payout from platform fee percent
-                    $platform_fee_percent = (float)Settings::get('platform_fee_percent', 0);
-                    $payout_percent = max(0.0, min(100.0, 100.0 - $platform_fee_percent));
-                } else {
-                    $payout_percent = max(0.0, min(100.0, $payout_percent));
-                }
-                $instructor_amount = (int)round($amount_cents * ($payout_percent / 100.0));
-                $application_fee_amount = max(0, $amount_cents - $instructor_amount);
-                $params['transfer_data[destination]'] = $acct;
-                $params['application_fee_amount'] = $application_fee_amount;
+            $split_result = self::calculate_payment_split($amount_cents, $instructor_id);
+            if ($split_result && !is_wp_error($split_result)) {
+                $params['transfer_data[destination]'] = $split_result['stripe_account'];
+                $params['application_fee_amount'] = $split_result['platform_amount'];
+                
+                // Log the payment split for audit trail
+                \ClassFlowPro\Logging\Logger::log('info', 'payment_split', 'Payment split calculated', [
+                    'instructor_id' => $instructor_id,
+                    'total_amount' => $amount_cents,
+                    'instructor_amount' => $split_result['instructor_amount'],
+                    'platform_amount' => $split_result['platform_amount'],
+                    'payout_percent' => $split_result['payout_percent']
+                ]);
             }
         }
 
@@ -179,21 +287,33 @@ class StripeGateway
 
         // Stripe Connect split handled via payment_intent_data
         if (Settings::get('stripe_connect_enabled', 0) && $instructor_id) {
-            $acct = get_post_meta($instructor_id, '_cfp_stripe_account_id', true);
-            if ($acct) {
-                $payout_percent = get_post_meta($instructor_id, '_cfp_payout_percent', true);
-                $payout_percent = is_numeric($payout_percent) ? (float)$payout_percent : null;
-                if ($payout_percent === null) {
-                    $platform_fee_percent = (float)Settings::get('platform_fee_percent', 0);
-                    $payout_percent = max(0.0, min(100.0, 100.0 - $platform_fee_percent));
-                } else {
-                    $payout_percent = max(0.0, min(100.0, $payout_percent));
-                }
-                $instructor_amount = (int)round($amount_cents * ($payout_percent / 100.0));
-                $application_fee_amount = max(0, $amount_cents - $instructor_amount);
-                $params['payment_intent_data[transfer_data][destination]'] = $acct;
-                $params['payment_intent_data[application_fee_amount]'] = $application_fee_amount;
+            $split_result = self::calculate_payment_split($amount_cents, $instructor_id);
+            if ($split_result && !is_wp_error($split_result)) {
+                $params['payment_intent_data[transfer_data][destination]'] = $split_result['stripe_account'];
+                $params['payment_intent_data[application_fee_amount]'] = $split_result['platform_amount'];
                 $params['payment_intent_data[metadata][booking_id]'] = (string)$booking_id;
+                $params['payment_intent_data[metadata][instructor_payout_percent]'] = (string)$split_result['payout_percent'];
+                $params['payment_intent_data[metadata][instructor_amount]'] = (string)$split_result['instructor_amount'];
+                
+                // Log the checkout session split
+                \ClassFlowPro\Logging\Logger::log('info', 'payment_split', 'Checkout session split calculated', [
+                    'instructor_id' => $instructor_id,
+                    'booking_id' => $booking_id,
+                    'total_amount' => $amount_cents,
+                    'instructor_amount' => $split_result['instructor_amount'],
+                    'platform_amount' => $split_result['platform_amount'],
+                    'payout_percent' => $split_result['payout_percent']
+                ]);
+            } else {
+                // No split possible, attach booking_id only
+                $params['payment_intent_data[metadata][booking_id]'] = (string)$booking_id;
+                
+                if (is_wp_error($split_result)) {
+                    \ClassFlowPro\Logging\Logger::log('warning', 'payment_split', 'Payment split failed', [
+                        'instructor_id' => $instructor_id,
+                        'error' => $split_result->get_error_message()
+                    ]);
+                }
             }
         } else {
             // Still attach booking_id to payment intent metadata via session param
