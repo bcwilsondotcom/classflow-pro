@@ -58,7 +58,9 @@ class Webhooks
                 return rest_ensure_response(['received' => true, 'duplicate' => true]);
             }
             if (!$existing) {
-                $wpdb->insert($log, [ 'provider'=>$provider, 'event_id'=>$event_id, 'event_type'=>$event['type'], 'status'=>'received', 'payload'=>json_encode($event) ], ['%s','%s','%s','%s','%s']);
+                // Sanitize payload - remove sensitive payment data
+                $sanitized_event = self::sanitize_webhook_payload($event);
+                $wpdb->insert($log, [ 'provider'=>$provider, 'event_id'=>$event_id, 'event_type'=>$event['type'], 'status'=>'received', 'payload'=>json_encode($sanitized_event) ], ['%s','%s','%s','%s','%s']);
             }
         }
 
@@ -404,5 +406,68 @@ class Webhooks
         $wpdb->update($bookings, [
             'payment_status' => 'failed',
         ], ['id' => $booking['id']], ['%s'], ['%d']);
+    }
+    
+    /**
+     * Sanitize webhook payload to remove sensitive payment data before logging
+     */
+    private static function sanitize_webhook_payload(array $event): array
+    {
+        $sanitized = $event;
+        
+        // List of sensitive fields to redact
+        $sensitive_fields = [
+            'payment_method_details',
+            'payment_method',
+            'card',
+            'bank_account',
+            'source',
+            'charges',
+            'invoice',
+            'subscription',
+            'customer'
+        ];
+        
+        // Recursively redact sensitive fields
+        $redact = function(&$data) use (&$redact, $sensitive_fields) {
+            if (!is_array($data)) return;
+            
+            foreach ($data as $key => &$value) {
+                // Redact sensitive fields
+                if (in_array($key, $sensitive_fields, true)) {
+                    if (is_array($value) && isset($value['id'])) {
+                        // Keep only the ID for reference
+                        $value = ['id' => $value['id'], 'redacted' => true];
+                    } else {
+                        $value = '[REDACTED]';
+                    }
+                } elseif (is_array($value)) {
+                    // Recursively check nested arrays
+                    $redact($value);
+                }
+                
+                // Redact specific sensitive string patterns
+                if (is_string($value)) {
+                    // Redact card numbers
+                    if (preg_match('/^\d{13,19}$/', $value)) {
+                        $value = '[CARD_NUMBER_REDACTED]';
+                    }
+                    // Redact CVV
+                    elseif (preg_match('/^\d{3,4}$/', $value) && in_array($key, ['cvc', 'cvv', 'security_code'], true)) {
+                        $value = '[CVV_REDACTED]';
+                    }
+                    // Redact bank account numbers
+                    elseif (stripos($key, 'account') !== false && preg_match('/^\d{6,}$/', $value)) {
+                        $value = '[ACCOUNT_REDACTED]';
+                    }
+                }
+            }
+        };
+        
+        if (isset($sanitized['data']['object'])) {
+            $redact($sanitized['data']['object']);
+        }
+        
+        return $sanitized;
     }
 }
