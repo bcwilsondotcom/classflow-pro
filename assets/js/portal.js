@@ -54,6 +54,37 @@
       });
     }catch(e){ $root.find('.cfp-notes-list').text('Failed to load notes.'); }
   }
+  async function redeemGiftCard($root){
+    const $wrap = $root.find('.cfp-portal-credits');
+    const $msg = $wrap.find('.cfp-gc-msg').empty();
+    const code = ($wrap.find('.cfp-gc-code').val()||'').toString().trim();
+    if (!code){ $msg.text('Please enter a code.'); return; }
+    const btn = $wrap.find('.cfp-gc-redeem-btn').prop('disabled', true);
+    try{
+      const res = await fetch(CFP_DATA.restUrl + 'giftcards/redeem', { method:'POST', headers: headers($root), body: JSON.stringify({ code }) });
+      const d = await res.json();
+      if (!res.ok){ $msg.text(d && d.message ? d.message : 'Invalid or already used code.'); return; }
+      $msg.text('Gift card redeemed: +' + (d.credits||0) + ' credits');
+      $wrap.find('.cfp-gc-code').val('');
+      // Refresh credits and lists
+      await loadPortal($root);
+    }catch(e){ $msg.text('Failed to redeem gift card.'); }
+    finally{ btn.prop('disabled', false); }
+  }
+  async function loadMySeries($root){
+    try{
+      const res = await fetch(CFP_DATA.restUrl + 'me/series', { headers: headers($root) });
+      const rows = await res.json();
+      const list = $root.find('.cfp-series-list').empty();
+      if (!res.ok || !Array.isArray(rows) || rows.length===0){ list.text('No series enrolled.'); return; }
+      rows.forEach(r=>{
+        const next = r.next_session ? new Date(r.next_session+'Z').toLocaleString() : '—';
+        list.append('<div class="cfp-item"><div><strong>'+(r.name||'')+'</strong> — '+(r.class_title||'')+'</div><div>'+ (r.start_date||'') +' → '+ (r.end_date||'') +'</div><div>Sessions: '+(r.sessions_total||0) +' · Next: '+next+'</div></div>');
+      });
+    }catch(e){ $root.find('.cfp-series-list').text('Failed to load.'); }
+  }
   $(function(){ $('.cfp-portal').each(function(){ const $r=$(this); loadPortal($r); loadProfile($r); loadNotes($r); }); });
+  $(function(){ $('.cfp-portal').each(function(){ const $r=$(this); loadMySeries($r); }); });
   $(document).on('click', '.cfp-prof-save', function(e){ e.preventDefault(); saveProfile($(this).closest('.cfp-portal')); });
+  $(document).on('click', '.cfp-gc-redeem-btn', function(e){ e.preventDefault(); redeemGiftCard($(this).closest('.cfp-portal')); });
 })(jQuery);

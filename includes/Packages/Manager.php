@@ -14,15 +14,22 @@ class Manager
     {
         global $wpdb;
         $table = $wpdb->prefix . 'cfp_packages';
-        $packages = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE user_id = %d AND credits_remaining > 0 AND (expires_at IS NULL OR expires_at > UTC_TIMESTAMP()) ORDER BY expires_at ASC, id ASC", $user_id), ARRAY_A);
-        foreach ($packages as $pkg) {
-            $remaining = (int)$pkg['credits_remaining'];
-            if ($remaining > 0) {
-                $wpdb->update($table, ['credits_remaining' => $remaining - 1], ['id' => $pkg['id']], ['%d'], ['%d']);
-                return true;
-            }
-        }
-        return false;
+        
+        // Use atomic UPDATE with WHERE condition to prevent race conditions
+        // This will only update if credits_remaining > 0, ensuring atomicity
+        $sql = $wpdb->prepare(
+            "UPDATE $table 
+             SET credits_remaining = credits_remaining - 1 
+             WHERE user_id = %d 
+               AND credits_remaining > 0 
+               AND (expires_at IS NULL OR expires_at > UTC_TIMESTAMP())
+             ORDER BY expires_at ASC, id ASC
+             LIMIT 1",
+            $user_id
+        );
+        
+        $rows_affected = $wpdb->query($sql);
+        return $rows_affected > 0;
     }
 
     public static function grant_package(int $user_id, string $name, int $credits, int $price_cents, string $currency, ?string $expires_at = null): int
@@ -87,8 +94,8 @@ class Manager
         $currency = 'usd';
         $success = \ClassFlowPro\Admin\Settings::get('checkout_success_url', '');
         $cancel = \ClassFlowPro\Admin\Settings::get('checkout_cancel_url', '');
-        $default_success = add_query_arg(['cfp_checkout' => 'success', 'package' => 1], home_url('/'));
-        $default_cancel = add_query_arg(['cfp_checkout' => 'cancel', 'package' => 1], home_url('/'));
+        $default_success = add_query_arg(['cfp_checkout' => 'success', 'type' => 'package'], home_url('/'));
+        $default_cancel = add_query_arg(['cfp_checkout' => 'cancel', 'type' => 'package'], home_url('/'));
         $make_absolute = function($url, $fallback) {
             $url = trim((string)$url);
             if (!$url) return $fallback;
@@ -110,6 +117,7 @@ class Manager
             'cancel_url' => $cancel,
             'booking_id' => 0,
             'instructor_id' => 0,
+            'type' => 'package',
         ]);
         if (is_wp_error($session)) return $session;
         global $wpdb;

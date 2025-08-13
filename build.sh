@@ -24,12 +24,17 @@ fi
 if [ -d "$ROOT_DIR/languages" ]; then
   cp -R "$ROOT_DIR/languages" "$PKG_DIR/"
 fi
+# Copy readme (support both cases) and uninstall script
 if [ -f "$ROOT_DIR/readme.txt" ]; then
-  cp "$ROOT_DIR/readme.txt" "$PKG_DIR/"
+  cp "$ROOT_DIR/readme.txt" "$PKG_DIR/readme.txt"
+elif [ -f "$ROOT_DIR/README.txt" ]; then
+  cp "$ROOT_DIR/README.txt" "$PKG_DIR/readme.txt"
+fi
+if [ -f "$ROOT_DIR/uninstall.php" ]; then
+  cp "$ROOT_DIR/uninstall.php" "$PKG_DIR/"
 fi
 
 echo "Creating zip..."
 (cd "$BUILD_DIR" && zip -rq "$(basename "$ZIP_FILE")" "$(basename "$PKG_DIR")")
 
 echo "Build complete: $ZIP_FILE"
-

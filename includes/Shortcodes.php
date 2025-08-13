@@ -18,6 +18,9 @@ class Shortcodes
         add_shortcode('cfp_buy_package', [self::class, 'buy_package']);
         add_shortcode('cfp_book_private', [self::class, 'book_private']);
         add_shortcode('cfp_client_dashboard', [self::class, 'client_dashboard']);
+        add_shortcode('cfp_gift_card', [self::class, 'gift_card_purchase']);
+        add_shortcode('cfp_gift_card_redeem', [self::class, 'gift_card_redeem']);
+        add_shortcode('cfp_series', [self::class, 'series']);
     }
 
     public static function small_calendar_booking($atts): string
@@ -376,6 +379,83 @@ class Shortcodes
         return $out;
     }
 
+    public static function gift_card_purchase($atts): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        $min = (int) Admin\Settings::get('giftcard_min_credits', 1);
+        $max = (int) Admin\Settings::get('giftcard_max_credits', 100);
+        $value = (int) Admin\Settings::get('giftcard_credit_value_cents', 0);
+        if ($value <= 0) return '<p>' . esc_html__('Gift cards are not available.', 'classflow-pro') . '</p>';
+        ob_start();
+        ?>
+        <div class="cfp-giftcard" style="max-width:420px">
+            <h3><?php esc_html_e('Purchase Gift Card', 'classflow-pro'); ?></h3>
+            <label><?php esc_html_e('Credits', 'classflow-pro'); ?> <input type="number" class="cfp-gc-credits" min="<?php echo esc_attr($min); ?>" max="<?php echo esc_attr($max); ?>" value="<?php echo esc_attr($min); ?>" /></label>
+            <label><?php esc_html_e('Recipient Email (optional)', 'classflow-pro'); ?> <input type="email" class="cfp-gc-recipient" placeholder="friend@example.com" /></label>
+            <?php if (!is_user_logged_in()): ?><label><?php esc_html_e('Your Email', 'classflow-pro'); ?> <input type="email" class="cfp-gc-email" placeholder="you@example.com" /></label><?php endif; ?>
+            <div class="cfp-gc-total" style="margin:8px 0;color:#475569;"></div>
+            <button class="button button-primary cfp-gc-buy"><?php esc_html_e('Buy Gift Card', 'classflow-pro'); ?></button>
+            <div class="cfp-msg" style="margin-top:8px;color:#ef4444"></div>
+        </div>
+        <script>
+        (function(){
+          const root = document.currentScript.previousElementSibling;
+          const credits = root.querySelector('.cfp-gc-credits');
+          const recipient = root.querySelector('.cfp-gc-recipient');
+          const buyer = root.querySelector('.cfp-gc-email');
+          const total = root.querySelector('.cfp-gc-total');
+          const msg = root.querySelector('.cfp-msg');
+          const value = <?php echo (int)$value; ?>;
+          function updateTotal(){ const n = parseInt(credits.value||0,10); total.textContent = 'Total: $' + ((n*value)/100).toFixed(2); }
+          credits.addEventListener('input', updateTotal); updateTotal();
+          root.querySelector('.cfp-gc-buy').addEventListener('click', async function(){
+            msg.textContent=''; const n=parseInt(credits.value||0,10); if (!n||n<<?php echo (int)$min; ?>||n><?php echo (int)$max; ?>){ msg.textContent='<?php echo esc_js(__('Invalid credits amount.', 'classflow-pro')); ?>'; return; }
+            const payload={ credits:n, recipient_email:(recipient.value||'')<?php if (!is_user_logged_in()): ?>, email:(buyer.value||'')<?php endif; ?> };
+            try{
+              const base=(window.CFP_DATA?CFP_DATA.restUrl:'<?php echo esc_js(rest_url('classflow/v1/')); ?>');
+              const res = await fetch(base+'giftcards/checkout', { method:'POST', headers:{'Content-Type':'application/json','X-WP-Nonce': (window.CFP_DATA?CFP_DATA.nonce:'')}, body: JSON.stringify(payload) });
+              const js = await res.json(); if(!res.ok){ msg.textContent = (js&&js.message)||'<?php echo esc_js(__('Failed to start checkout', 'classflow-pro')); ?>'; return; }
+              if (js.url) window.location.href = js.url; else msg.textContent='<?php echo esc_js(__('Failed to get checkout link.', 'classflow-pro')); ?>';
+            }catch(e){ msg.textContent='<?php echo esc_js(__('Failed to start checkout', 'classflow-pro')); ?>'; }
+          });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
+    public static function gift_card_redeem($atts): string
+    {
+        if (!is_user_logged_in()) return '<p>' . esc_html__('Please log in to redeem a gift card.', 'classflow-pro') . '</p>';
+        wp_enqueue_style('cfp-frontend');
+        ob_start();
+        ?>
+        <div class="cfp-giftcard-redeem" style="max-width:420px">
+            <h3><?php esc_html_e('Redeem Gift Card', 'classflow-pro'); ?></h3>
+            <label><?php esc_html_e('Code', 'classflow-pro'); ?> <input type="text" class="cfp-gc-code" placeholder="XXXX-XXXX" /></label>
+            <button class="button button-primary cfp-gc-redeem"><?php esc_html_e('Redeem', 'classflow-pro'); ?></button>
+            <div class="cfp-msg" style="margin-top:8px;"></div>
+        </div>
+        <script>
+        (function(){
+          const root = document.currentScript.previousElementSibling;
+          const code = root.querySelector('.cfp-gc-code');
+          const msg = root.querySelector('.cfp-msg');
+          root.querySelector('.cfp-gc-redeem').addEventListener('click', async function(){
+            msg.textContent=''; const c=(code.value||'').trim(); if (!c){ msg.textContent='<?php echo esc_js(__('Enter a code.', 'classflow-pro')); ?>'; return; }
+            try{
+              const base=(window.CFP_DATA?CFP_DATA.restUrl:'<?php echo esc_js(rest_url('classflow/v1/')); ?>');
+              const res = await fetch(base+'giftcards/redeem', { method:'POST', headers:{'Content-Type':'application/json','X-WP-Nonce': (window.CFP_DATA?CFP_DATA.nonce:'')}, body: JSON.stringify({ code:c }) });
+              const js = await res.json(); if(!res.ok){ msg.textContent = (js&&js.message)||'<?php echo esc_js(__('Failed to redeem', 'classflow-pro')); ?>'; return; }
+              msg.style.color='#16a34a'; msg.textContent='<?php echo esc_js(__('Redeemed', 'classflow-pro')); ?> ' + (js.credits||0) + ' <?php echo esc_js(__('credits', 'classflow-pro')); ?>.';
+            }catch(e){ msg.textContent='<?php echo esc_js(__('Failed to redeem', 'classflow-pro')); ?>'; }
+          });
+        })();
+        </script>
+        <?php
+        return ob_get_clean();
+    }
+
     public static function book_class($atts): string
     {
         $atts = shortcode_atts(['class_id' => 0, 'location_id' => 0], $atts, 'cfp_book_class');
@@ -516,8 +596,17 @@ class Shortcodes
         echo '</div></div>';
         echo '<div class="cfp-portal-upcoming"><h3>Upcoming Classes</h3><div class="cfp-list cfp-upcoming-list">Loading…</div></div>';
         echo '<div class="cfp-portal-past"><h3>Past Classes</h3><div class="cfp-list cfp-past-list">Loading…</div></div>';
-        echo '<div class="cfp-portal-credits"><h3>Credits</h3><div class="cfp-credits">Loading…</div></div>';
+        echo '<div class="cfp-portal-credits"><h3>Credits</h3><div class="cfp-credits">Loading…</div>';
+        echo '<div class="cfp-gc-redeem" style="margin-top:12px; padding:10px; border:1px solid #e2e4e7; border-radius:6px; max-width:420px;">';
+        echo '<label style="display:block; margin-bottom:6px;"><strong>' . esc_html__('Redeem gift card', 'classflow-pro') . '</strong></label>';
+        echo '<div style="display:flex; gap:8px; align-items:center;">'
+            . '<input type="text" class="cfp-gc-code" placeholder="' . esc_attr__('Enter code', 'classflow-pro') . '" style="flex:1;" />'
+            . '<button class="button cfp-gc-redeem-btn">' . esc_html__('Redeem', 'classflow-pro') . '</button>'
+            . '</div>';
+        echo '<div class="cfp-gc-msg" role="status" style="margin-top:8px;"></div>';
+        echo '</div></div>';
         echo '<div class="cfp-portal-notes"><h3>' . esc_html__('Notes', 'classflow-pro') . '</h3><div class="cfp-notes-list">Loading…</div></div>';
+        echo '<div class="cfp-portal-series"><h3>' . esc_html__('My Series', 'classflow-pro') . '</h3><div class="cfp-series-list">Loading…</div></div>';
         echo '</div>';
         return ob_get_clean();
     }
@@ -539,6 +628,24 @@ class Shortcodes
         $nonce = wp_create_nonce('wp_rest');
         ob_start();
         echo '<div class="cfp-waitlist-response" data-nonce="' . esc_attr($nonce) . '"><div class="cfp-msg" aria-live="polite">Processing your response…</div></div>';
+        return ob_get_clean();
+    }
+
+    public static function series($atts = []): string
+    {
+        wp_enqueue_style('cfp-frontend');
+        wp_enqueue_script('stripe-js', 'https://js.stripe.com/v3/', [], null, true);
+        wp_enqueue_script('cfp-series', CFP_PLUGIN_URL . 'assets/js/series.js', ['jquery'], '1.0.0', true);
+        wp_localize_script('cfp-series', 'CFP_DATA', [
+            'restUrl' => esc_url_raw(rest_url('classflow/v1/')),
+        ]);
+        $nonce = wp_create_nonce('wp_rest');
+        ob_start();
+        echo '<div class="cfp-series" data-nonce="' . esc_attr($nonce) . '">';
+        echo '<h3>' . esc_html__('Programs & Series', 'classflow-pro') . '</h3>';
+        echo '<div class="cfp-series-list">' . esc_html__('Loading…', 'classflow-pro') . '</div>';
+        echo '<div class="cfp-msg" aria-live="polite"></div>';
+        echo '</div>';
         return ob_get_clean();
     }
 }

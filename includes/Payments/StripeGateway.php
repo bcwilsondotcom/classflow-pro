@@ -145,6 +145,13 @@ class StripeGateway
         $booking_id = (int)($args['booking_id'] ?? 0);
         $instructor_id = (int)($args['instructor_id'] ?? 0);
 
+        // Append GA amounts to success URL
+        $success_url = add_query_arg([
+            'amount' => number_format(($amount_cents/100), 2, '.', ''),
+            'currency' => strtoupper($currency),
+        ], $success_url);
+
+        // Single-line item checkout: success URL already includes correct amount
         $params = [
             'mode' => 'payment',
             'success_url' => $success_url,
@@ -196,6 +203,68 @@ class StripeGateway
         $session = self::api_request('POST', '/checkout/sessions', $params);
         if (is_wp_error($session)) return $session;
         return [ 'id' => $session['id'], 'url' => $session['url'] ];
+    }
+
+    // One-off fee (late cancel / no-show) as Checkout Session
+    public static function create_checkout_session_oneoff(array $args)
+    {
+        $amount_cents = (int)($args['amount_cents'] ?? 0);
+        $currency = 'usd';
+        $name = $args['name'] ?? 'Fee';
+        $description = $args['description'] ?? '';
+        $success_url = $args['success_url'] ?? home_url('/');
+        $cancel_url = $args['cancel_url'] ?? home_url('/');
+        $customer_email = $args['customer_email'] ?? null;
+        if ($amount_cents <= 0) return new \WP_Error('cfp_invalid_amount', __('Invalid amount', 'classflow-pro'));
+        $metadata = $args['metadata'] ?? [];
+        // Ensure GA params on success URL
+        $success_url = add_query_arg([
+            'amount' => number_format(($amount_cents/100), 2, '.', ''),
+            'currency' => strtoupper($currency),
+        ], $success_url);
+        $params = [
+            'mode' => 'payment',
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => $currency,
+                    'product_data' => [ 'name' => $name, 'description' => $description ],
+                    'unit_amount' => $amount_cents,
+                ],
+                'quantity' => 1,
+            ]],
+            'success_url' => $success_url,
+            'cancel_url' => $cancel_url,
+            'allow_promotion_codes' => 'false',
+        ];
+        if ($customer_email) { $params['customer_email'] = $customer_email; }
+        foreach ($metadata as $k=>$v) { $params['metadata['.$k.']'] = (string)$v; }
+        $session = self::api_request('POST', '/checkout/sessions', $params);
+        if (is_wp_error($session)) return $session;
+        return ['id' => $session['id'], 'url' => $session['url']];
+    }
+
+    // Create Checkout Session for a subscription (membership)
+    public static function create_checkout_session_subscription(array $args)
+    {
+        $price_id = $args['price_id'] ?? '';
+        $customer_email = $args['customer_email'] ?? null;
+        $success_url = $args['success_url'] ?? home_url('/');
+        $cancel_url = $args['cancel_url'] ?? home_url('/');
+        $metadata = $args['metadata'] ?? [];
+        if (!$price_id) return new \WP_Error('cfp_invalid_price', __('Missing Stripe price ID', 'classflow-pro'));
+        $params = [
+            'mode' => 'subscription',
+            'success_url' => $success_url,
+            'cancel_url' => $cancel_url,
+            'allow_promotion_codes' => 'true',
+            'line_items[0][price]' => $price_id,
+            'line_items[0][quantity]' => 1,
+        ];
+        if ($customer_email) { $params['customer_email'] = $customer_email; }
+        foreach ($metadata as $k=>$v) { $params['metadata['.$k.']'] = (string)$v; }
+        $session = self::api_request('POST', '/checkout/sessions', $params);
+        if (is_wp_error($session)) return $session;
+        return ['id' => $session['id'], 'url' => $session['url']];
     }
 
     public static function create_checkout_session_multi(array $args)

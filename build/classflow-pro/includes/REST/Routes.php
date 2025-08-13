@@ -19,20 +19,37 @@ class Routes
         // Entities listings (first-class tables)
         register_rest_route('classflow/v1', '/entities/classes', [
             'methods' => 'GET',
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                // Public access allowed for frontend booking display
+                return true;
+            },
             'callback' => [self::class, 'list_classes'],
             'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
         ]);
         register_rest_route('classflow/v1', '/entities/locations', [
-            'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_locations'],
+            'methods' => 'GET', 
+            'permission_callback' => function() {
+                // Public access allowed for frontend booking display
+                return true;
+            }, 
+            'callback' => [self::class, 'list_locations'],
             'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
         ]);
         register_rest_route('classflow/v1', '/entities/instructors', [
-            'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_instructors'],
+            'methods' => 'GET', 
+            'permission_callback' => function() {
+                // Public access allowed for frontend booking display
+                return true;
+            }, 
+            'callback' => [self::class, 'list_instructors'],
             'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
         ]);
         register_rest_route('classflow/v1', '/entities/resources', [
-            'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => [self::class, 'list_resources'],
+            'methods' => 'GET', 
+            'permission_callback' => function() {
+                return current_user_can('manage_options');
+            }, 
+            'callback' => [self::class, 'list_resources'],
             'args' => [ 's' => ['type'=>'string','required'=>false], 'per_page' => ['type'=>'integer','required'=>false], 'page' => ['type'=>'integer','required'=>false] ],
         ]);
 
@@ -46,7 +63,10 @@ class Routes
         register_rest_route('classflow/v1', '/schedules', [
             'methods' => 'GET',
             'callback' => [self::class, 'get_schedules'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                // Public access allowed for frontend booking display
+                return true;
+            },
             'args' => [
                 'class_id' => ['type' => 'integer', 'required' => false],
                 'location_id' => ['type' => 'integer', 'required' => false],
@@ -59,7 +79,10 @@ class Routes
         register_rest_route('classflow/v1', '/schedules/available', [
             'methods' => 'GET',
             'callback' => [self::class, 'get_available_schedules'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                // Public access allowed for frontend booking display
+                return true;
+            },
             'args' => [
                 'class_id' => ['type' => 'integer', 'required' => true],
                 'date_from' => ['type' => 'string', 'required' => false],
@@ -71,7 +94,10 @@ class Routes
         register_rest_route('classflow/v1', '/ical/schedules', [
             'methods' => 'GET',
             'callback' => [self::class, 'ical_schedules'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                // Public access allowed for calendar feeds
+                return true;
+            },
         ]);
         register_rest_route('classflow/v1', '/ical/me_url', [
             'methods' => 'GET',
@@ -118,6 +144,29 @@ class Routes
             'callback' => [self::class, 'admin_cancel_booking'],
             'permission_callback' => function () { return current_user_can('manage_options'); },
         ]);
+        
+        // Admin: process refund for a booking
+        register_rest_route('classflow/v1', '/admin/refund', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'admin_process_refund'],
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+            'args' => [
+                'booking_id' => ['type' => 'integer', 'required' => true],
+                'refund_type' => ['type' => 'string', 'required' => true, 'enum' => ['full', 'partial', 'credit']],
+                'refund_amount' => ['type' => 'integer', 'required' => false],
+                'reason' => ['type' => 'string', 'required' => false],
+            ],
+        ]);
+        
+        // Admin: cancel booking
+        register_rest_route('classflow/v1', '/admin/cancel', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'admin_cancel'],
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+            'args' => [
+                'booking_id' => ['type' => 'integer', 'required' => true],
+            ],
+        ]);
 
         // Private session request
         register_rest_route('classflow/v1', '/private/request', [
@@ -134,12 +183,12 @@ class Routes
         register_rest_route('classflow/v1', '/waitlist/accept', [
             'methods' => 'POST',
             'callback' => [self::class, 'waitlist_accept'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => '__return_true', // Public endpoint - token validation in callback
         ]);
         register_rest_route('classflow/v1', '/waitlist/deny', [
             'methods' => 'POST',
             'callback' => [self::class, 'waitlist_deny'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => '__return_true', // Public endpoint - token validation in callback
         ]);
 
         register_rest_route('classflow/v1', '/payment_intent', [
@@ -161,14 +210,20 @@ class Routes
         register_rest_route('classflow/v1', '/stripe/webhook', [
             'methods' => 'POST',
             'callback' => [StripeWebhooks::class, 'handle'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                // Webhook endpoints require signature verification in the handler
+                return true;
+            },
         ]);
 
         // Inbound SMS webhook (Twilio): update opt-in status based on STOP/START
         register_rest_route('classflow/v1', '/sms/twilio_webhook', [
             'methods' => 'POST',
             'callback' => [self::class, 'sms_twilio_webhook'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => function() {
+                // Webhook endpoints require signature verification in the handler
+                return true;
+            },
         ]);
 
         register_rest_route('classflow/v1', '/packages/purchase', [
@@ -177,6 +232,47 @@ class Routes
             'permission_callback' => function () {
                 return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest');
             },
+        ]);
+
+        // Memberships
+        register_rest_route('classflow/v1', '/memberships/plans', [
+            'methods' => 'GET',
+            'callback' => function() { return rest_ensure_response(\ClassFlowPro\Memberships\Manager::list_plans()); },
+            'permission_callback' => '__return_true',
+        ]);
+        register_rest_route('classflow/v1', '/memberships/checkout', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'membership_checkout'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+
+        // Gift card purchase
+        register_rest_route('classflow/v1', '/giftcards/checkout', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'giftcard_checkout'],
+            'permission_callback' => function () { return wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/giftcards/redeem', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'giftcard_redeem'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+
+        // Series
+        register_rest_route('classflow/v1', '/series', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'list_series'],
+            'permission_callback' => '__return_true',
+        ]);
+        register_rest_route('classflow/v1', '/series/checkout', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'series_checkout'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
+        register_rest_route('classflow/v1', '/series/waitlist_join', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'series_waitlist_join'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
         ]);
 
         register_rest_route('classflow/v1', '/quickbooks/connect', [
@@ -374,6 +470,11 @@ class Routes
             'callback' => [self::class, 'get_my_notes'],
             'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
         ]);
+        register_rest_route('classflow/v1', '/me/series', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'get_my_series'],
+            'permission_callback' => function () { return is_user_logged_in() && wp_verify_nonce($_SERVER['HTTP_X_WP_NONCE'] ?? '', 'wp_rest'); },
+        ]);
         register_rest_route('classflow/v1', '/me/intake', [
             'methods' => 'GET',
             'callback' => [self::class, 'get_my_intake'],
@@ -425,10 +526,11 @@ class Routes
             $params[] = gmdate('Y-m-d H:i:s', strtotime($req['date_to']));
         }
         // Hide cancelled schedules by default
-        $where[] = "COALESCE(status,'active') <> 'cancelled'";
+        $where[] = "COALESCE(status,'active') <> %s";
+        $params[] = 'cancelled';
         $where_sql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
         $sql = "SELECT * FROM $table $where_sql ORDER BY start_time ASC LIMIT 500";
-        $prepared = $params ? $wpdb->prepare($sql, $params) : $sql;
+        $prepared = $wpdb->prepare($sql, ...$params);
         $rows = $wpdb->get_results($prepared, ARRAY_A);
         foreach ($rows as &$row) {
             $row['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$row['class_id']);
@@ -831,6 +933,8 @@ class Routes
         };
 
         $success_url = $make_absolute($conf_success, $default_success);
+        // Ensure type for analytics
+        $success_url = add_query_arg(['type' => 'class'], $success_url);
         $cancel_url = $make_absolute($conf_cancel, $default_cancel);
 
         // Always use USD for Stripe Checkout Session
@@ -845,6 +949,7 @@ class Routes
             'cancel_url' => $cancel_url,
             'booking_id' => $booking_id,
             'instructor_id' => (int)$row['instructor_id'],
+            'type' => 'class',
         ]);
         if (is_wp_error($session)) return $session;
         // Attach session id to booking for reference
@@ -901,6 +1006,169 @@ class Routes
         $session = \ClassFlowPro\Packages\Manager::create_checkout_session($user_id ?: null, $name, $credits, $price_cents, $email, $buyer_name);
         if (is_wp_error($session)) return $session;
         return rest_ensure_response($session);
+    }
+
+    public static function membership_checkout(WP_REST_Request $req)
+    {
+        $user_id = get_current_user_id();
+        $data = $req->get_json_params();
+        $plan_id = (int)($data['plan_id'] ?? 0);
+        if (!$user_id || !$plan_id) return new WP_Error('cfp_invalid', __('Missing user or plan', 'classflow-pro'), ['status'=>400]);
+        $session = \ClassFlowPro\Memberships\Manager::start_checkout_session($user_id, $plan_id);
+        if (is_wp_error($session)) return $session;
+        return rest_ensure_response($session);
+    }
+
+    public static function giftcard_checkout(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $credits = max(1, (int)($data['credits'] ?? 0));
+        $recipient = sanitize_email($data['recipient_email'] ?? '');
+        $value_per = (int)\ClassFlowPro\Admin\Settings::get('giftcard_credit_value_cents', 0);
+        $minc = (int)\ClassFlowPro\Admin\Settings::get('giftcard_min_credits', 1);
+        $maxc = (int)\ClassFlowPro\Admin\Settings::get('giftcard_max_credits', 100);
+        if ($credits < $minc || $credits > $maxc) {
+            return new \WP_Error('cfp_invalid_credits', __('Invalid credits amount', 'classflow-pro'), ['status'=>400]);
+        }
+        if ($value_per <= 0) {
+            return new \WP_Error('cfp_not_configured', __('Gift card pricing not configured', 'classflow-pro'), ['status'=>400]);
+        }
+        $amount_cents = $credits * $value_per;
+        $email = is_user_logged_in() ? (wp_get_current_user()->user_email ?: '') : sanitize_email($data['email'] ?? '');
+        $desc = sprintf(__('Gift Card — %d Credits', 'classflow-pro'), $credits);
+        $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session_oneoff([
+            'amount_cents' => $amount_cents,
+            'name' => __('Gift Card', 'classflow-pro'),
+            'description' => $desc,
+            'customer_email' => $email ?: null,
+            'success_url' => add_query_arg(['cfp_checkout'=>'success','type'=>'giftcard'], home_url('/')),
+            'cancel_url' => add_query_arg(['cfp_checkout'=>'cancel','type'=>'giftcard'], home_url('/')),
+            'metadata' => [ 'type' => 'giftcard', 'giftcard_credits' => (string)$credits, 'recipient_email' => $recipient ],
+        ]);
+        if (is_wp_error($session)) return $session;
+        return rest_ensure_response($session);
+    }
+
+    public static function giftcard_redeem(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $code = sanitize_text_field($data['code'] ?? '');
+        $uid = get_current_user_id();
+        if (!$uid || !$code) return new \WP_Error('cfp_invalid', __('Missing code', 'classflow-pro'), ['status'=>400]);
+        // Basic rate limiting: max 5 failed attempts per 10 minutes per user
+        $key = 'cfp_gc_try_' . $uid;
+        $tries = (int)get_transient($key);
+        if ($tries >= 5) {
+            return new \WP_Error('cfp_rate_limited', __('Too many attempts. Please try again later.', 'classflow-pro'), ['status'=>429]);
+        }
+        global $wpdb; $gc=$wpdb->prefix.'cfp_gift_cards';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $gc WHERE code=%s AND status='new'", $code), ARRAY_A);
+        if (!$row) { set_transient($key, $tries+1, MINUTE_IN_SECONDS*10); return new \WP_Error('cfp_invalid_code', __('Invalid or used gift card code', 'classflow-pro'), ['status'=>400]); }
+        \ClassFlowPro\Packages\Manager::grant_package($uid, __('Gift Card', 'classflow-pro'), (int)$row['credits'], (int)$row['amount_cents'], $row['currency'] ?: 'usd', null);
+        $wpdb->update($gc, [ 'status'=>'used', 'used_by_user_id'=>$uid, 'used_at'=>gmdate('Y-m-d H:i:s') ], [ 'id'=>(int)$row['id'] ], ['%s','%d','%s'], ['%d']);
+        delete_transient($key);
+        return rest_ensure_response(['ok'=>true, 'credits'=>(int)$row['credits']]);
+    }
+
+    public static function list_series(WP_REST_Request $req)
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_series'; $ss=$wpdb->prefix.'cfp_series_sessions'; $s=$wpdb->prefix.'cfp_schedules'; $b=$wpdb->prefix.'cfp_bookings';
+        $now = gmdate('Y-m-d');
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE status='active' AND end_date >= %s ORDER BY start_date ASC LIMIT 100", $now), ARRAY_A);
+        foreach ($rows as &$r) {
+            $r['id'] = (int)$r['id']; $r['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']);
+            // Compute seats_left as min across sessions
+            $scheds = $wpdb->get_results($wpdb->prepare("SELECT s.id, s.capacity FROM $s s JOIN $ss x ON x.schedule_id=s.id WHERE x.series_id=%d", (int)$r['id']), ARRAY_A);
+            $min_left = null;
+            foreach ($scheds as $sc) {
+                $booked = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $b WHERE schedule_id=%d AND status IN ('pending','confirmed')", (int)$sc['id']));
+                $left = max(0, (int)$sc['capacity'] - $booked);
+                $min_left = is_null($min_left) ? $left : min($min_left, $left);
+            }
+            $r['seats_left'] = $min_left ?? 0;
+        }
+        return rest_ensure_response($rows);
+    }
+
+    public static function series_checkout(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $series_id = (int)($data['series_id'] ?? 0);
+        if (!$series_id) return new WP_Error('cfp_invalid', __('Missing series', 'classflow-pro'), ['status'=>400]);
+        $user = wp_get_current_user(); if (!$user || !$user->ID) return new WP_Error('cfp_auth', __('Login required', 'classflow-pro'), ['status'=>401]);
+        global $wpdb; $t=$wpdb->prefix.'cfp_series'; $ss=$wpdb->prefix.'cfp_series_sessions'; $s=$wpdb->prefix.'cfp_schedules'; $b=$wpdb->prefix.'cfp_bookings';
+        $series = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id=%d AND status='active'", $series_id), ARRAY_A);
+        if (!$series) return new WP_Error('cfp_not_found', __('Series not found', 'classflow-pro'), ['status'=>404]);
+        // Availability check: ensure all sessions have at least 1 seat left
+        $scheds = $wpdb->get_results($wpdb->prepare("SELECT s.id, s.capacity FROM $s s JOIN $ss x ON x.schedule_id=s.id WHERE x.series_id=%d ORDER BY s.start_time ASC", $series_id), ARRAY_A);
+        if (!$scheds) return new WP_Error('cfp_no_sessions', __('Series has no sessions', 'classflow-pro'), ['status'=>400]);
+        foreach ($scheds as $sc) {
+            $booked = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $b WHERE schedule_id=%d AND status IN ('pending','confirmed')", (int)$sc['id']));
+            if ($booked >= (int)$sc['capacity']) {
+                return new WP_Error('cfp_full', __('Series is full for at least one date', 'classflow-pro'), ['status'=>409]);
+            }
+        }
+        // Prerequisites
+        $pr_class = (int)($series['prereq_class_id'] ?? 0);
+        $pr_min = max(0, (int)($series['prereq_min_completed'] ?? 0));
+        $req_intake = !empty($series['require_intake']);
+        if ($req_intake) {
+            $intake_tbl = $wpdb->prefix . 'cfp_intake_forms';
+            $has = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $intake_tbl WHERE user_id = %d", (int)$user->ID));
+            if ($has <= 0) return new WP_Error('cfp_prereq_intake', __('Please complete your intake form before enrolling.', 'classflow-pro'), ['status'=>400]);
+        }
+        if ($pr_min > 0 && $pr_class > 0) {
+            $book_tbl = $wpdb->prefix . 'cfp_bookings';
+            $sched_tbl = $wpdb->prefix . 'cfp_schedules';
+            $attended = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $book_tbl b JOIN $sched_tbl s ON s.id=b.schedule_id WHERE b.user_id=%d AND s.class_id=%d AND b.attendance_status='checked_in'", (int)$user->ID, $pr_class));
+            if ($attended < $pr_min) return new WP_Error('cfp_prereq', __('Prerequisite not met for this series.', 'classflow-pro'), ['status'=>400]);
+        }
+        // Stripe Checkout for total price
+        $success = add_query_arg(['cfp_checkout'=>'success','type'=>'series','series_id'=>$series_id], home_url('/'));
+        $cancel = add_query_arg(['cfp_checkout'=>'cancel','type'=>'series','series_id'=>$series_id], home_url('/'));
+        $desc = $series['name'] . ' (' . $series['start_date'] . ' → ' . $series['end_date'] . ')';
+        $session = \ClassFlowPro\Payments\StripeGateway::create_checkout_session_oneoff([
+            'amount_cents' => (int)$series['price_cents'],
+            'name' => __('Series Enrollment','classflow-pro'),
+            'description' => $desc,
+            'success_url' => $success,
+            'cancel_url' => $cancel,
+            'customer_email' => $user->user_email,
+            'metadata' => [ 'type' => 'series', 'series_id' => (string)$series_id, 'user_id' => (string)$user->ID ],
+        ]);
+        if (is_wp_error($session)) return $session;
+        return rest_ensure_response($session);
+    }
+
+    public static function series_waitlist_join(WP_REST_Request $req)
+    {
+        $data = $req->get_json_params();
+        $series_id = (int)($data['series_id'] ?? 0);
+        if (!$series_id) return new WP_Error('cfp_invalid', __('Missing series', 'classflow-pro'), ['status'=>400]);
+        $user = wp_get_current_user(); if (!$user || !$user->ID) return new WP_Error('cfp_auth', __('Login required', 'classflow-pro'), ['status'=>401]);
+        global $wpdb; $t=$wpdb->prefix.'cfp_series'; $wl=$wpdb->prefix.'cfp_series_waitlist';
+        $series = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id=%d", $series_id), ARRAY_A);
+        if (!$series) return new WP_Error('cfp_not_found', __('Series not found', 'classflow-pro'), ['status'=>404]);
+        // Upsert waitlist
+        $exists = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $wl WHERE series_id=%d AND user_id=%d", $series_id, (int)$user->ID));
+        if ($exists <= 0) {
+            $wpdb->insert($wl, [ 'series_id'=>$series_id, 'user_id'=>(int)$user->ID, 'email'=>$user->user_email, 'status'=>'waiting' ], ['%d','%d','%s','%s']);
+        }
+        return rest_ensure_response(['ok'=>true]);
+    }
+
+    public static function get_my_series(WP_REST_Request $req)
+    {
+        $user = wp_get_current_user(); if (!$user || !$user->ID) return new WP_Error('cfp_auth', __('Login required', 'classflow-pro'), ['status'=>401]);
+        global $wpdb; $en=$wpdb->prefix.'cfp_series_enrollments'; $se=$wpdb->prefix.'cfp_series'; $ss=$wpdb->prefix.'cfp_series_sessions'; $s=$wpdb->prefix.'cfp_schedules';
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT e.*, sr.name, sr.start_date, sr.end_date, sr.class_id FROM $en e JOIN $se sr ON sr.id=e.series_id WHERE e.user_id=%d ORDER BY sr.start_date DESC", (int)$user->ID), ARRAY_A);
+        foreach ($rows as &$r) {
+            $r['series_id'] = (int)$r['series_id']; $r['status'] = (string)$r['status'];
+            $r['class_title'] = \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']);
+            $r['sessions_total'] = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ss WHERE series_id=%d", (int)$r['series_id']));
+            $r['next_session'] = $wpdb->get_var($wpdb->prepare("SELECT s.start_time FROM $s s JOIN $ss x ON x.schedule_id=s.id WHERE x.series_id=%d AND s.start_time >= UTC_TIMESTAMP() ORDER BY s.start_time ASC LIMIT 1", (int)$r['series_id'])) ?: null;
+        }
+        return rest_ensure_response($rows);
     }
 
     public static function me_overview(WP_REST_Request $req)
@@ -1075,6 +1343,100 @@ class Routes
         if (is_wp_error($res)) return $res;
         return rest_ensure_response($res);
     }
+    
+    public static function admin_process_refund(WP_REST_Request $req)
+    {
+        global $wpdb;
+        $booking_id = (int)$req['booking_id'];
+        $refund_type = sanitize_text_field($req['refund_type']);
+        $refund_amount = $req['refund_amount'] ? (int)$req['refund_amount'] : null;
+        $reason = sanitize_textarea_field($req['reason'] ?? '');
+        
+        $bookings = $wpdb->prefix . 'cfp_bookings';
+        $booking = $wpdb->get_row($wpdb->prepare("SELECT * FROM $bookings WHERE id = %d", $booking_id), ARRAY_A);
+        
+        if (!$booking) {
+            return new \WP_Error('cfp_not_found', __('Booking not found', 'classflow-pro'), ['status' => 404]);
+        }
+        
+        if ($booking['status'] === 'refunded') {
+            return new \WP_Error('cfp_already_refunded', __('Booking already refunded', 'classflow-pro'), ['status' => 400]);
+        }
+        
+        // Process refund based on type
+        if ($refund_type === 'credit') {
+            // Issue studio credits
+            $credit_amount = $refund_amount ?? (int)$booking['amount_cents'];
+            $credits_to_grant = max(1, (int)($credit_amount / 1500)); // Assuming $15 per credit
+            $pkg_id = \ClassFlowPro\Packages\Manager::grant_package((int)$booking['user_id'], 'Refund Credit - ' . $reason, $credits_to_grant, 0, $booking['currency'], null);
+            
+            $wpdb->update($bookings, ['status' => 'canceled'], ['id' => $booking_id], ['%s'], ['%d']);
+            
+            // Log the credit refund
+            $transactions = $wpdb->prefix . 'cfp_transactions';
+            $wpdb->insert($transactions, [
+                'user_id' => $booking['user_id'],
+                'booking_id' => $booking['id'],
+                'amount_cents' => 0,
+                'currency' => $booking['currency'],
+                'type' => 'credit_refund',
+                'processor' => 'internal',
+                'processor_id' => 'pkg_' . $pkg_id,
+                'status' => 'succeeded',
+                'description' => 'Credit refund: ' . $credits_to_grant . ' credits - ' . $reason,
+            ], ['%d','%d','%d','%s','%s','%s','%s','%s','%s']);
+            
+            return rest_ensure_response(['status' => 'credits_issued', 'credits' => $credits_to_grant]);
+            
+        } elseif (!empty($booking['payment_intent_id']) && (int)$booking['amount_cents'] > 0) {
+            // Process Stripe refund
+            $amount_to_refund = null;
+            if ($refund_type === 'partial' && $refund_amount) {
+                $amount_to_refund = $refund_amount;
+            }
+            
+            $refund = \ClassFlowPro\Payments\StripeGateway::refund_intent($booking['payment_intent_id'], $amount_to_refund);
+            
+            if (is_wp_error($refund)) {
+                return $refund;
+            }
+            
+            $wpdb->update($bookings, ['status' => 'refunded'], ['id' => $booking_id], ['%s'], ['%d']);
+            
+            // Log the refund
+            $transactions = $wpdb->prefix . 'cfp_transactions';
+            $wpdb->insert($transactions, [
+                'user_id' => $booking['user_id'],
+                'booking_id' => $booking['id'],
+                'amount_cents' => -1 * ($amount_to_refund ?? (int)$booking['amount_cents']),
+                'currency' => $booking['currency'],
+                'type' => 'refund',
+                'processor' => 'stripe',
+                'processor_id' => $refund['id'] ?? '',
+                'status' => 'succeeded',
+                'description' => $reason,
+            ], ['%d','%d','%d','%s','%s','%s','%s','%s','%s']);
+            
+            // Send notification
+            try { 
+                \ClassFlowPro\Notifications\Mailer::booking_canceled($booking_id, 'refunded'); 
+            } catch (\Throwable $e) { 
+                error_log('[CFP] notify booking_refunded error: ' . $e->getMessage()); 
+            }
+            
+            return rest_ensure_response(['status' => 'refunded', 'refund_id' => $refund['id']]);
+        }
+        
+        return new \WP_Error('cfp_no_payment', __('No payment found to refund', 'classflow-pro'), ['status' => 400]);
+    }
+    
+    public static function admin_cancel(WP_REST_Request $req)
+    {
+        $booking_id = (int)$req['booking_id'];
+        $res = \ClassFlowPro\Booking\Manager::admin_cancel_booking($booking_id, ['action' => 'cancel', 'notify' => true]);
+        if (is_wp_error($res)) return $res;
+        return rest_ensure_response($res);
+    }
 
     public static function reschedule_booking(WP_REST_Request $req)
     {
@@ -1090,9 +1452,43 @@ class Routes
 
     public static function sms_twilio_webhook(WP_REST_Request $req)
     {
+        // Verify Twilio signature to prevent spoofed requests
+        $auth_token = (string) \ClassFlowPro\Admin\Settings::get('twilio_auth_token', '');
+        $sig = (string) ($req->get_header('X-Twilio-Signature') ?: ($_SERVER['HTTP_X_TWILIO_SIGNATURE'] ?? ''));
+        if (!$auth_token || !$sig) {
+            \ClassFlowPro\Logging\Logger::log('warning', 'twilio_webhook', 'Missing Twilio auth or signature');
+            return new WP_Error('cfp_twilio_forbidden', __('Invalid Twilio webhook request', 'classflow-pro'), ['status' => 403]);
+        }
+        // Construct the expected signature using the exact webhook URL and POST params
+        $url = rest_url('classflow/v1/sms/twilio_webhook');
+        // Gather parameters as sent (best-effort via REST request parser)
+        $params = (array) $req->get_body_params();
+        if (empty($params) && !empty($_POST)) {
+            // Fallback for x-www-form-urlencoded
+            $params = wp_unslash($_POST);
+        }
+        ksort($params);
+        $data = $url;
+        foreach ($params as $k => $v) {
+            // Twilio: concatenate key and value, sorted by key; for repeated keys, sort values
+            if (is_array($v)) {
+                $vals = array_map('strval', $v);
+                sort($vals, SORT_STRING);
+                foreach ($vals as $vv) { $data .= (string)$k . $vv; }
+            } else {
+                $data .= (string)$k . (string)$v;
+            }
+        }
+        $expected = base64_encode(hash_hmac('sha1', $data, $auth_token, true));
+        if (!hash_equals($expected, $sig)) {
+            \ClassFlowPro\Logging\Logger::log('warning', 'twilio_webhook', 'Signature mismatch', [ 'expected' => $expected ]);
+            return new WP_Error('cfp_twilio_forbidden', __('Invalid Twilio webhook signature', 'classflow-pro'), ['status' => 403]);
+        }
+
         $from = sanitize_text_field($req->get_param('From'));
         $body = strtoupper(trim((string)$req->get_param('Body')));
         if (!$from || !$body) return rest_ensure_response(['ok' => true]);
+
         global $wpdb; $um=$wpdb->usermeta;
         $user_id = (int)$wpdb->get_var($wpdb->prepare("SELECT user_id FROM $um WHERE meta_key='cfp_phone' AND meta_value=%s LIMIT 1", $from));
         if ($user_id > 0) {

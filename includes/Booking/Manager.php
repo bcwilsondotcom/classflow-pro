@@ -33,12 +33,7 @@ class Manager
         if (!empty($schedule['status']) && $schedule['status'] === 'cancelled') {
             return new WP_Error('cfp_cancelled', __('This class session has been cancelled', 'classflow-pro'), ['status' => 400]);
         }
-        $capacity = (int)$schedule['capacity'];
-        $booked = self::get_booked_count($schedule_id);
-        if ($booked >= $capacity) {
-            return new WP_Error('cfp_full', __('Class is fully booked', 'classflow-pro'), ['status' => 409]);
-        }
-
+        
         $user_id = $customer['user_id'] ?? null;
         $email = $customer['email'] ?? '';
         $amount_cents = (int)$schedule['price_cents'];
@@ -74,25 +69,54 @@ class Manager
         $coupon_code = null;
 
         $table = $wpdb->prefix . 'cfp_bookings';
-        $wpdb->insert($table, [
-            'schedule_id' => $schedule_id,
-            'user_id' => $user_id,
-            'customer_email' => $email,
-            'status' => $status,
-            'payment_intent_id' => $payment_intent_id,
-            'payment_status' => $amount_cents > 0 ? 'requires_payment' : 'paid',
-            'credits_used' => $credits_used,
-            'amount_cents' => $amount_cents,
-            'discount_cents' => 0,
-            'currency' => $currency,
-            'coupon_id' => null,
-            'coupon_code' => null,
-            'metadata' => wp_json_encode(['name' => $customer['name'] ?? '']),
-        ], [
-            '%d','%d','%s','%s','%s','%d','%d','%d','%s','%d','%s','%s'
-        ]);
+        
+        // START TRANSACTION to ensure atomic capacity check and insert
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            // Lock the schedule row and re-check capacity atomically
+            $capacity = (int)$schedule['capacity'];
+            $booked = (int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table WHERE schedule_id = %d AND status IN ('pending','confirmed') FOR UPDATE",
+                $schedule_id
+            ));
+            
+            if ($booked >= $capacity) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('cfp_full', __('Class is fully booked', 'classflow-pro'), ['status' => 409]);
+            }
+            
+            // Now insert the booking within the transaction
+            $wpdb->insert($table, [
+                'schedule_id' => $schedule_id,
+                'user_id' => $user_id,
+                'customer_email' => $email,
+                'status' => $status,
+                'payment_intent_id' => $payment_intent_id,
+                'payment_status' => $amount_cents > 0 ? 'requires_payment' : 'paid',
+                'credits_used' => $credits_used,
+                'amount_cents' => $amount_cents,
+                'discount_cents' => 0,
+                'currency' => $currency,
+                'coupon_id' => null,
+                'coupon_code' => null,
+                'metadata' => wp_json_encode(['name' => $customer['name'] ?? '']),
+            ], [
+                '%d','%d','%s','%s','%s','%d','%d','%d','%s','%d','%s','%s'
+            ]);
 
-        $booking_id = (int)$wpdb->insert_id;
+            $booking_id = (int)$wpdb->insert_id;
+            
+            if (!$booking_id) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('cfp_booking_failed', __('Failed to create booking', 'classflow-pro'), ['status' => 500]);
+            }
+            
+            $wpdb->query('COMMIT');
+        } catch (\Throwable $e) {
+            $wpdb->query('ROLLBACK');
+            return new WP_Error('cfp_booking_error', __('Booking error: ', 'classflow-pro') . $e->getMessage(), ['status' => 500]);
+        }
 
         if ($status === 'confirmed') {
             try { \ClassFlowPro\Notifications\Mailer::booking_confirmed($booking_id); } catch (\Throwable $e) { error_log('[CFP] notify booking_confirmed error: ' . $e->getMessage()); }
@@ -164,39 +188,96 @@ class Manager
         }
         $schedule = $wpdb->get_row($wpdb->prepare("SELECT * FROM $schedules WHERE id = %d", $booking['schedule_id']), ARRAY_A);
         if (!$schedule) return new \WP_Error('cfp_not_found', __('Schedule not found', 'classflow-pro'), ['status' => 404]);
+        
+        // Check cancellation policy
+        $policy_enabled = \ClassFlowPro\Admin\Settings::get('cancellation_policy_enabled', false);
+        $policy_type = \ClassFlowPro\Admin\Settings::get('cancellation_policy_type', 'flexible');
         $window_hours = (int)\ClassFlowPro\Admin\Settings::get('cancellation_window_hours', 0);
+        $is_late_cancel = false;
+        
         if ($window_hours > 0) {
             $deadline = strtotime($schedule['start_time'] . ' UTC') - ($window_hours * 3600);
             if (time() > $deadline) {
-                return new \WP_Error('cfp_past_deadline', sprintf(__('Cancellations are allowed until %d hours before start.', 'classflow-pro'), $window_hours), ['status' => 400]);
+                $is_late_cancel = true;
+                if ($policy_enabled && $policy_type === 'strict') {
+                    return new \WP_Error('cfp_past_deadline', sprintf(__('Cancellations are not allowed within %d hours of class start (strict policy).', 'classflow-pro'), $window_hours), ['status' => 400]);
+                }
             }
+        }
+
+        // Determine refund amount based on policy
+        $refund_enabled = \ClassFlowPro\Admin\Settings::get('refund_policy_enabled', true);
+        $refund_type = \ClassFlowPro\Admin\Settings::get('refund_processing_type', 'automatic');
+        $refund_percentage = 100; // Default full refund
+        
+        if ($policy_enabled && $is_late_cancel) {
+            switch ($policy_type) {
+                case 'moderate':
+                    $refund_percentage = 50;
+                    break;
+                case 'strict':
+                    $refund_percentage = 0;
+                    break;
+                case 'custom':
+                    $refund_percentage = (int)\ClassFlowPro\Admin\Settings::get('refund_percentage', 100);
+                    break;
+            }
+        } else {
+            $refund_percentage = (int)\ClassFlowPro\Admin\Settings::get('refund_percentage', 100);
         }
 
         // Process reversal: return credit or refund Stripe
         $new_status = 'canceled';
         if ((int)$booking['credits_used'] > 0) {
-            // Return one credit
-            $pkg_id = \ClassFlowPro\Packages\Manager::grant_package($user_id, 'Returned Credit', 1, 0, $booking['currency'], null);
+            // Return credit based on policy
+            if ($refund_percentage > 0) {
+                $credits_to_return = ($refund_percentage >= 100) ? 1 : 0; // Only return full credit or none
+                if ($credits_to_return > 0) {
+                    $pkg_id = \ClassFlowPro\Packages\Manager::grant_package($user_id, 'Returned Credit', $credits_to_return, 0, $booking['currency'], null);
+                }
+            }
             $new_status = 'canceled';
         } elseif (!empty($booking['payment_intent_id']) && (int)$booking['amount_cents'] > 0) {
-            $refund = \ClassFlowPro\Payments\StripeGateway::refund_intent($booking['payment_intent_id'], null);
-            if (is_wp_error($refund)) {
-                return $refund;
+            if ($refund_enabled && $refund_percentage > 0) {
+                $refund_amount = null;
+                if ($refund_percentage < 100) {
+                    $refund_amount = (int)(($booking['amount_cents'] * $refund_percentage) / 100);
+                }
+                
+                if ($refund_type === 'automatic' || $refund_type === 'manual') {
+                    // Process Stripe refund
+                    $refund = \ClassFlowPro\Payments\StripeGateway::refund_intent($booking['payment_intent_id'], $refund_amount);
+                    if (is_wp_error($refund)) {
+                        return $refund;
+                    }
+                    $new_status = 'refunded';
+                    $transactions = $wpdb->prefix . 'cfp_transactions';
+                    $wpdb->insert($transactions, [
+                        'user_id' => $booking['user_id'],
+                        'booking_id' => $booking['id'],
+                        'amount_cents' => -1 * ($refund_amount ?? (int)$booking['amount_cents']),
+                        'currency' => $booking['currency'],
+                        'type' => 'refund',
+                        'processor' => 'stripe',
+                        'processor_id' => $refund['id'] ?? '',
+                        'status' => 'succeeded',
+                        'tax_amount_cents' => 0,
+                        'fee_amount_cents' => 0,
+                    ], ['%d','%d','%d','%s','%s','%s','%s','%d','%d']);
+                } elseif ($refund_type === 'credit_only') {
+                    // Issue studio credits instead of refund
+                    $credit_amount = (int)(($booking['amount_cents'] * $refund_percentage) / 100);
+                    $credits_to_grant = max(1, (int)($credit_amount / 1500)); // Assuming $15 per credit
+                    $pkg_id = \ClassFlowPro\Packages\Manager::grant_package($user_id, 'Cancellation Credit', $credits_to_grant, 0, $booking['currency'], null);
+                    $new_status = 'canceled';
+                }
+            } else {
+                $new_status = 'canceled';
             }
-            $new_status = 'refunded';
-            $transactions = $wpdb->prefix . 'cfp_transactions';
-            $wpdb->insert($transactions, [
-                'user_id' => $booking['user_id'],
-                'booking_id' => $booking['id'],
-                'amount_cents' => -1 * (int)$booking['amount_cents'],
-                'currency' => $booking['currency'],
-                'type' => 'refund',
-                'processor' => 'stripe',
-                'processor_id' => $refund['id'] ?? '',
-                'status' => 'succeeded',
-                'tax_amount_cents' => 0,
-                'fee_amount_cents' => 0,
-            ], ['%d','%d','%d','%s','%s','%s','%s','%d','%d']);
+        } else {
+            $new_status = 'canceled';
+            // QuickBooks refund receipt
+            try { \ClassFlowPro\Accounting\QuickBooks::create_refund_receipt_for_booking((int)$booking['id'], (int)$booking['amount_cents']); } catch (\Throwable $e) {}
         }
 
         $wpdb->update($bookings, [

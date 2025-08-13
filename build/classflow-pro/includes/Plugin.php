@@ -64,6 +64,12 @@ class Plugin
         
         // Google Workspace integrations
         $this->init_google_services();
+
+        // Webhook retry cron
+        if (!wp_next_scheduled('cfp_retry_webhooks')) {
+            wp_schedule_event(time() + 300, 'hourly', 'cfp_retry_webhooks');
+        }
+        add_action('cfp_retry_webhooks', function(){ \ClassFlowPro\Payments\Webhooks::retry_failed(); });
     }
     
     /**

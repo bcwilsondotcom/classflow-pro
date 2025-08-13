@@ -22,15 +22,40 @@
       const $root=$(this);
       const p=new URLSearchParams(window.location.search);
       const st=(p.get('cfp_checkout')||'').toLowerCase();
+      const type=(p.get('type')||'').toLowerCase();
       if (st==='success'){
         msg($root, 'Thank you! Your checkout completed successfully.');
         checkIntakeAndPrompt($root);
+        try{
+          // GA4 dataLayer event
+          window.dataLayer = window.dataLayer || [];
+          const amount = parseFloat(p.get('amount')||'');
+          const currency = (p.get('currency')||'').toUpperCase();
+          const payload = { event: 'cfp_checkout_success', cfp_type: type||'unknown' };
+          if (!isNaN(amount)) { payload.value = amount; }
+          if (currency) { payload.currency = currency; }
+          window.dataLayer.push(payload);
+          // Facebook Pixel (optional)
+          if (typeof window.fbq === 'function') {
+            if (!isNaN(amount) && currency) {
+              window.fbq('track', 'Purchase', { value: amount, currency: currency, contents: [{ id: type||'unknown', quantity: 1 }], content_type: 'product' });
+            } else {
+              window.fbq('trackCustom', 'CFPCheckoutSuccess', { type: type||'unknown' });
+            }
+          }
+        }catch(e){}
       } else if (st==='cancel'){
         msg($root, 'Checkout was canceled. You can try again anytime.');
+        try{
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({ event: 'cfp_checkout_cancel', cfp_type: type||'unknown' });
+          if (typeof window.fbq === 'function') {
+            window.fbq('trackCustom', 'CFPCheckoutCancel', { type: type||'unknown' });
+          }
+        }catch(e){}
       } else {
         msg($root, 'Welcome.');
       }
     });
   });
 })(jQuery);
-

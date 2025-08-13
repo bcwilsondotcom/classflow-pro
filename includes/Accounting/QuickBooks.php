@@ -151,7 +151,9 @@ class QuickBooks
 
     public static function ensure_customer(string $email, string $display_name)
     {
-        $query = "select Id, DisplayName from Customer where PrimaryEmailAddr.Address = '$email'";
+        // Escape single quotes for QuickBooks query language
+        $escaped_email = str_replace("'", "\\'", $email);
+        $query = "select Id, DisplayName from Customer where PrimaryEmailAddr.Address = '" . $escaped_email . "'";
         $res = self::api_request('GET', '/query?query=' . rawurlencode($query));
         if (!is_wp_error($res) && !empty($res['QueryResponse']['Customer'][0]['Id'])) {
             return $res['QueryResponse']['Customer'][0]['Id'];
@@ -182,10 +184,12 @@ class QuickBooks
         $amount = round(((int)$booking['amount_cents']) / 100, 2);
 
         $customer_id = $email ? self::ensure_customer($email, $email) : null;
-        // Item mapping
-        $itemRef = null;
+        // Item mapping (class or instructor)
+        $itemRef = null; $incomeAccountRef = \ClassFlowPro\Admin\Settings::get('qb_income_account_ref', '');
         if (\ClassFlowPro\Admin\Settings::get('qb_item_per_class_enable', 0)) {
             $itemRef = self::ensure_item_for_class((int)$schedule['class_id']);
+        } elseif (\ClassFlowPro\Admin\Settings::get('qb_item_per_instructor_enable', 0) && !empty($schedule['instructor_id'])) {
+            $itemRef = self::ensure_item('Instructor: ' . (\ClassFlowPro\Utils\Entities::instructor_name((int)$schedule['instructor_id']) ?: ('#' . (int)$schedule['instructor_id'])));
         } elseif ($name = \ClassFlowPro\Admin\Settings::get('qb_default_item_name', '')) {
             $itemRef = self::ensure_item($name);
         }
@@ -193,6 +197,7 @@ class QuickBooks
 
         $lineDetail = [ 'Qty' => 1, 'UnitPrice' => $amount ];
         if ($itemRef) $lineDetail['ItemRef'] = ['value' => $itemRef];
+        if ($incomeAccountRef) $lineDetail['IncomeAccountRef'] = ['value' => $incomeAccountRef];
         if ($taxCodeRef) $lineDetail['TaxCodeRef'] = ['value' => $taxCodeRef];
         $line = [ 'DetailType' => 'SalesItemLineDetail', 'Amount' => $amount, 'Description' => $desc, 'SalesItemLineDetail' => $lineDetail ];
         $payload = [
@@ -214,6 +219,42 @@ class QuickBooks
                 'type' => 'sales_receipt',
                 'processor' => 'quickbooks',
                 'processor_id' => $created['SalesReceipt']['Id'],
+                'status' => 'succeeded',
+                'tax_amount_cents' => 0,
+                'fee_amount_cents' => 0,
+            ], ['%d','%d','%d','%s','%s','%s','%s','%d','%d']);
+        }
+    }
+
+    public static function create_refund_receipt_for_booking(int $booking_id, int $amount_cents): void
+    {
+        global $wpdb;
+        $bookings = $wpdb->prefix . 'cfp_bookings';
+        $schedules = $wpdb->prefix . 'cfp_schedules';
+        $booking = $wpdb->get_row($wpdb->prepare("SELECT * FROM $bookings WHERE id = %d", $booking_id), ARRAY_A);
+        if (!$booking) return;
+        $schedule = $wpdb->get_row($wpdb->prepare("SELECT * FROM $schedules WHERE id = %d", $booking['schedule_id']), ARRAY_A);
+        $amount = round($amount_cents / 100, 2);
+        $email = $booking['customer_email']; $customer_id = $email ? self::ensure_customer($email, $email) : null;
+        $title = $schedule ? \ClassFlowPro\Utils\Entities::class_name((int)$schedule['class_id']) : 'Class';
+        $desc = 'Refund: ' . $title . ' #' . $booking_id;
+        $payload = [
+            'TxnDate' => gmdate('Y-m-d'),
+            'Line' => [[ 'Amount' => $amount, 'DetailType' => 'SalesItemLineDetail', 'Description' => $desc, 'SalesItemLineDetail' => ['Qty'=>1, 'UnitPrice'=>$amount] ]],
+            'PrivateNote' => 'ClassFlow Pro Refund #' . $booking_id,
+        ];
+        if ($customer_id) $payload['CustomerRef'] = ['value'=>$customer_id];
+        $created = self::api_request('POST', '/refundreceipt', $payload);
+        if (!is_wp_error($created) && !empty($created['RefundReceipt']['Id'])) {
+            $tx = $wpdb->prefix . 'cfp_transactions';
+            $wpdb->insert($tx, [
+                'user_id' => $booking['user_id'],
+                'booking_id' => $booking['id'],
+                'amount_cents' => -1 * abs($amount_cents),
+                'currency' => $booking['currency'],
+                'type' => 'refund_receipt',
+                'processor' => 'quickbooks',
+                'processor_id' => $created['RefundReceipt']['Id'],
                 'status' => 'succeeded',
                 'tax_amount_cents' => 0,
                 'fee_amount_cents' => 0,
@@ -246,7 +287,9 @@ class QuickBooks
 
     public static function ensure_item(string $name): ?string
     {
-        $query = "select Id, Name from Item where Name = '$name'";
+        // Escape single quotes for QuickBooks query language
+        $escaped_name = str_replace("'", "\\'", $name);
+        $query = "select Id, Name from Item where Name = '" . $escaped_name . "'";
         $res = self::api_request('GET', '/query?query=' . rawurlencode($query));
         if (!is_wp_error($res) && !empty($res['QueryResponse']['Item'][0]['Id'])) {
             return $res['QueryResponse']['Item'][0]['Id'];

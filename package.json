@@ -1,0 +1,33 @@
+{
+  "name": "classflow-pro",
+  "version": "1.1.0",
+  "description": "ClassFlow Pro - Pilates Studio Manager WordPress Plugin",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:css && npm run build:js",
+    "build:css": "echo 'CSS already built'",
+    "build:js": "echo 'JS already built'",
+    "watch": "echo 'No build process required - using vanilla JS'",
+    "test": "echo 'No tests configured'",
+    "lint": "eslint assets/js/*.js",
+    "lint:fix": "eslint assets/js/*.js --fix"
+  },
+  "keywords": [
+    "wordpress",
+    "plugin",
+    "pilates",
+    "studio",
+    "booking",
+    "scheduling"
+  ],
+  "author": "ClassFlow Pro",
+  "license": "GPL-2.0-or-later",
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "eslint-config-wordpress": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+}

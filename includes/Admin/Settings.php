@@ -16,24 +16,30 @@ class Settings
         );
         add_submenu_page('classflow-pro', __('Dashboard', 'classflow-pro'), __('Dashboard', 'classflow-pro'), 'manage_options', 'classflow-pro', ['ClassFlowPro\\Admin\\Dashboard', 'render']);
         // Custom Classes admin page (replaces default CPT UI)
-        add_submenu_page('classflow-pro', __('Classes', 'classflow-pro'), __('Classes', 'classflow-pro'), 'edit_posts', 'classflow-pro-classes', ['ClassFlowPro\\Admin\\Classes', 'render']);
+        add_submenu_page('classflow-pro', __('Classes', 'classflow-pro'), __('Classes', 'classflow-pro'), 'cfp_manage_schedules', 'classflow-pro-classes', ['ClassFlowPro\\Admin\\Classes', 'render']);
         // Custom entity admin pages (non-CPT)
-        add_submenu_page('classflow-pro', __('Instructors', 'classflow-pro'), __('Instructors', 'classflow-pro'), 'manage_options', 'classflow-pro-instructors', ['ClassFlowPro\\Admin\\Instructors', 'render']);
-        add_submenu_page('classflow-pro', __('Locations', 'classflow-pro'), __('Locations', 'classflow-pro'), 'manage_options', 'classflow-pro-locations', ['ClassFlowPro\\Admin\\Locations', 'render']);
-        add_submenu_page('classflow-pro', __('Resources', 'classflow-pro'), __('Resources', 'classflow-pro'), 'manage_options', 'classflow-pro-resources', ['ClassFlowPro\\Admin\\Resources', 'render']);
+        add_submenu_page('classflow-pro', __('Instructors', 'classflow-pro'), __('Instructors', 'classflow-pro'), 'cfp_manage_schedules', 'classflow-pro-instructors', ['ClassFlowPro\\Admin\\Instructors', 'render']);
+        add_submenu_page('classflow-pro', __('Locations', 'classflow-pro'), __('Locations', 'classflow-pro'), 'cfp_manage_schedules', 'classflow-pro-locations', ['ClassFlowPro\\Admin\\Locations', 'render']);
+        add_submenu_page('classflow-pro', __('Resources', 'classflow-pro'), __('Resources', 'classflow-pro'), 'cfp_manage_schedules', 'classflow-pro-resources', ['ClassFlowPro\\Admin\\Resources', 'render']);
         // New full-screen Schedules calendar
-        add_submenu_page('classflow-pro', __('Schedules', 'classflow-pro'), __('Schedules', 'classflow-pro'), 'manage_options', 'classflow-pro-schedules', ['ClassFlowPro\\Admin\\Schedules', 'render']);
-        add_submenu_page('classflow-pro', __('Bookings', 'classflow-pro'), __('Bookings', 'classflow-pro'), 'manage_options', 'classflow-pro-bookings', ['ClassFlowPro\\Admin\\Bookings', 'render']);
+        add_submenu_page('classflow-pro', __('Schedules', 'classflow-pro'), __('Schedules', 'classflow-pro'), 'cfp_manage_schedules', 'classflow-pro-schedules', ['ClassFlowPro\\Admin\\Schedules', 'render']);
+        add_submenu_page('classflow-pro', __('Series', 'classflow-pro'), __('Series', 'classflow-pro'), 'cfp_manage_schedules', 'classflow-pro-series', ['ClassFlowPro\\Admin\\Series', 'render']);
+        add_submenu_page('classflow-pro', __('Bookings', 'classflow-pro'), __('Bookings', 'classflow-pro'), 'cfp_manage_bookings', 'classflow-pro-bookings', ['ClassFlowPro\\Admin\\Bookings', 'render']);
+        add_submenu_page('classflow-pro', __('Rosters', 'classflow-pro'), __('Rosters', 'classflow-pro'), 'manage_options', 'classflow-pro-rosters', ['ClassFlowPro\\Admin\\Rosters', 'render']);
         // Coupons removed: no submenu
-        add_submenu_page('classflow-pro', __('QuickBooks Tools', 'classflow-pro'), __('QuickBooks Tools', 'classflow-pro'), 'manage_options', 'classflow-pro-qbtools', ['ClassFlowPro\\Admin\\QuickBooksTools', 'render']);
+        add_submenu_page('classflow-pro', __('QuickBooks Tools', 'classflow-pro'), __('QuickBooks Tools', 'classflow-pro'), 'cfp_view_reports', 'classflow-pro-qbtools', ['ClassFlowPro\\Admin\\QuickBooksTools', 'render']);
         // Schedules are now managed within Classes
-        add_submenu_page('classflow-pro', __('Private Requests', 'classflow-pro'), __('Private Requests', 'classflow-pro'), 'manage_options', 'classflow-pro-privreq', ['ClassFlowPro\\Admin\\PrivateRequests', 'render']);
+        add_submenu_page('classflow-pro', __('Private Requests', 'classflow-pro'), __('Private Requests', 'classflow-pro'), 'cfp_manage_bookings', 'classflow-pro-privreq', ['ClassFlowPro\\Admin\\PrivateRequests', 'render']);
         add_submenu_page('classflow-pro', __('Settings', 'classflow-pro'), __('Settings', 'classflow-pro'), 'manage_options', 'classflow-pro-settings', [self::class, 'render_settings_page']);
         add_submenu_page('classflow-pro', __('Logs', 'classflow-pro'), __('Logs', 'classflow-pro'), 'manage_options', 'classflow-pro-logs', ['ClassFlowPro\\Admin\\Logs', 'render']);
-        add_submenu_page('classflow-pro', __('Reports', 'classflow-pro'), __('Reports', 'classflow-pro'), 'manage_options', 'classflow-pro-reports', ['ClassFlowPro\\Admin\\Reports', 'render']);
+        add_submenu_page('classflow-pro', __('Reports', 'classflow-pro'), __('Reports', 'classflow-pro'), 'cfp_view_reports', 'classflow-pro-reports', ['ClassFlowPro\\Admin\\Reports', 'render']);
+        add_submenu_page('classflow-pro', __('Memberships', 'classflow-pro'), __('Memberships', 'classflow-pro'), 'cfp_manage_memberships', 'classflow-pro-memberships', ['ClassFlowPro\\Admin\\Memberships', 'render']);
         add_submenu_page('classflow-pro', __('Payouts', 'classflow-pro'), __('Payouts', 'classflow-pro'), 'manage_options', 'classflow-pro-payouts', ['ClassFlowPro\\Admin\\Payouts', 'render']);
-        add_submenu_page('classflow-pro', __('Customers', 'classflow-pro'), __('Customers', 'classflow-pro'), 'manage_options', 'classflow-pro-customers', ['ClassFlowPro\\Admin\\Customers', 'render']);
-        add_submenu_page('classflow-pro', __('Intake Forms', 'classflow-pro'), __('Intake Forms', 'classflow-pro'), 'manage_options', 'classflow-pro-intake', ['ClassFlowPro\\Admin\\IntakeForms', 'render']);
+        add_submenu_page('classflow-pro', __('Customers', 'classflow-pro'), __('Customers', 'classflow-pro'), 'cfp_manage_customers', 'classflow-pro-customers', ['ClassFlowPro\\Admin\\Customers', 'render']);
+        add_submenu_page('classflow-pro', __('Import', 'classflow-pro'), __('Import', 'classflow-pro'), 'manage_options', 'classflow-pro-import', ['ClassFlowPro\\Admin\\Import', 'render']);
+        add_submenu_page('classflow-pro', __('System', 'classflow-pro'), __('System', 'classflow-pro'), 'manage_options', 'classflow-pro-system', ['ClassFlowPro\\Admin\\System', 'render']);
+        add_submenu_page('classflow-pro', __('Gift Cards', 'classflow-pro'), __('Gift Cards', 'classflow-pro'), 'cfp_manage_customers', 'classflow-pro-giftcards', ['ClassFlowPro\\Admin\\GiftCards', 'render']);
+        add_submenu_page('classflow-pro', __('Intake Forms', 'classflow-pro'), __('Intake Forms', 'classflow-pro'), 'cfp_manage_customers', 'classflow-pro-intake', ['ClassFlowPro\\Admin\\IntakeForms', 'render']);
     }
 
     public static function register_settings(): void
@@ -69,6 +75,10 @@ class Settings
         }, 'classflow-pro');
         add_settings_field('notify_sms_customer', __('SMS Customers', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_customer', 'help' => __('Send SMS confirmations and reminders to clients.', 'classflow-pro')]);
         add_settings_field('notify_sms_instructor', __('SMS Instructors', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'notify_sms_instructor', 'help' => __('Send SMS notifications to instructors.', 'classflow-pro')]);
+        // Gift card email templates
+        add_settings_field('template_giftcard_subject', __('Gift Card Email Subject', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_giftcard_subject', 'help' => __('Use placeholders: {site}', 'classflow-pro')]);
+        add_settings_field('template_giftcard_body', __('Gift Card Email Body', 'classflow-pro'), [self::class, 'field_textarea'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_giftcard_body', 'help' => __('Placeholders: {site}, {code}, {credits}, {amount}, {recipient_email}, {purchaser_email}, {redeem_url}', 'classflow-pro')]);
+        add_settings_field('giftcard_bcc_admin', __('BCC Admin on Gift Card Email', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_notifications', ['key' => 'giftcard_bcc_admin', 'help' => __('Send a copy of gift card emails to the site admin.', 'classflow-pro')]);
         add_settings_field('twilio_account_sid', __('Twilio Account SID', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_account_sid', 'help' => __('From Twilio Console > Account > API Keys.', 'classflow-pro')]);
         add_settings_field('twilio_auth_token', __('Twilio Auth Token', 'classflow-pro'), [self::class, 'field_password'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_auth_token', 'help' => __('Twilio auth token for your account.', 'classflow-pro')]);
         add_settings_field('twilio_from_number', __('Twilio From Number (E.164)', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'twilio_from_number', 'help' => __('The sending number, e.g., +15551234567.', 'classflow-pro')]);
@@ -88,6 +98,14 @@ class Settings
         add_settings_field('checkout_success_url', __('Checkout Success URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_success_url', 'help' => __('Where to send clients after successful checkout.', 'classflow-pro')]);
         add_settings_field('checkout_cancel_url', __('Checkout Cancel URL', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_stripe', ['key' => 'checkout_cancel_url', 'help' => __('Where to send clients if they cancel checkout.', 'classflow-pro')]);
 
+        // Gift Cards
+        add_settings_section('cfp_giftcards', __('Gift Cards', 'classflow-pro'), function () {
+            echo '<p>' . esc_html__('Configure gift card pricing. Clients can purchase credits as gift cards and redeem later.', 'classflow-pro') . '</p>';
+        }, 'classflow-pro');
+        add_settings_field('giftcard_credit_value_cents', __('Price per Credit (cents)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_giftcards', ['key' => 'giftcard_credit_value_cents', 'step' => '50', 'help' => __('Price charged per credit for gift cards (e.g., 1500 = $15/credit).', 'classflow-pro')]);
+        add_settings_field('giftcard_min_credits', __('Minimum Credits', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_giftcards', ['key' => 'giftcard_min_credits', 'step' => '1', 'help' => __('Minimum credits allowed per gift card purchase.', 'classflow-pro')]);
+        add_settings_field('giftcard_max_credits', __('Maximum Credits', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_giftcards', ['key' => 'giftcard_max_credits', 'step' => '1', 'help' => __('Maximum credits allowed per gift card purchase.', 'classflow-pro')]);
+
         add_settings_section('cfp_quickbooks', __('QuickBooks Online', 'classflow-pro'), function () {
             echo '<p>' . esc_html__('Connect to QuickBooks to create sales receipts automatically on successful payments.', 'classflow-pro') . '</p>';
         }, 'classflow-pro');
@@ -103,6 +121,7 @@ class Settings
         add_settings_field('qb_item_prefix', __('Item Name Prefix', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_quickbooks', ['key' => 'qb_item_prefix']);
         add_settings_field('qb_default_item_name', __('Default Item Name', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_quickbooks', ['key' => 'qb_default_item_name']);
         add_settings_field('qb_income_account_ref', __('Income Account Ref', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_quickbooks', ['key' => 'qb_income_account_ref']);
+        add_settings_field('qb_item_per_instructor_enable', __('Create Items per Instructor', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_quickbooks', ['key' => 'qb_item_per_instructor_enable']);
         add_settings_field('qb_tax_code_ref', __('Tax Code Ref', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_quickbooks', ['key' => 'qb_tax_code_ref']);
 
         add_settings_section('cfp_notifications', __('Notifications', 'classflow-pro'), function () {
@@ -115,6 +134,36 @@ class Settings
         add_settings_field('template_canceled_body', __('Canceled Body (HTML)', 'classflow-pro'), [self::class, 'field_textarea'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_canceled_body']);
         add_settings_field('template_rescheduled_subject', __('Rescheduled Subject', 'classflow-pro'), [self::class, 'field_text'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_rescheduled_subject']);
         add_settings_field('template_rescheduled_body', __('Rescheduled Body (HTML)', 'classflow-pro'), [self::class, 'field_textarea'], 'classflow-pro', 'cfp_notifications', ['key' => 'template_rescheduled_body']);
+
+        // Policies & Fees
+        add_settings_section('cfp_policies', __('Policies & Fees', 'classflow-pro'), function () {
+            echo '<p>' . esc_html__('Configure cancellation policies, refund rules, and late cancel/no-show fees.', 'classflow-pro') . '</p>';
+        }, 'classflow-pro');
+        
+        // Cancellation Policy Settings
+        add_settings_field('cancellation_policy_enabled', __('Enable Cancellation Policy', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_policies', ['key' => 'cancellation_policy_enabled', 'help' => __('Enforce cancellation policies for bookings.', 'classflow-pro')]);
+        add_settings_field('cancellation_policy_type', __('Cancellation Policy Type', 'classflow-pro'), [self::class, 'field_select'], 'classflow-pro', 'cfp_policies', ['key' => 'cancellation_policy_type', 'choices' => [
+            'flexible' => __('Flexible - Full refund/credit if cancelled within window', 'classflow-pro'),
+            'moderate' => __('Moderate - 50% refund/credit for late cancellations', 'classflow-pro'),
+            'strict' => __('Strict - No refund/credit for late cancellations', 'classflow-pro'),
+            'custom' => __('Custom - Use settings below', 'classflow-pro'),
+        ]]);
+        
+        // Refund Settings
+        add_settings_field('refund_policy_enabled', __('Enable Refunds', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_policies', ['key' => 'refund_policy_enabled', 'help' => __('Allow refund processing for cancellations.', 'classflow-pro')]);
+        add_settings_field('refund_processing_type', __('Refund Processing', 'classflow-pro'), [self::class, 'field_select'], 'classflow-pro', 'cfp_policies', ['key' => 'refund_processing_type', 'choices' => [
+            'automatic' => __('Automatic - Process refunds immediately on cancellation', 'classflow-pro'),
+            'manual' => __('Manual - Require admin approval for refunds', 'classflow-pro'),
+            'credit_only' => __('Credit Only - Issue studio credits instead of refunds', 'classflow-pro'),
+        ]]);
+        add_settings_field('refund_percentage', __('Refund Percentage (%)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_policies', ['key' => 'refund_percentage', 'step' => '5', 'min' => '0', 'max' => '100', 'help' => __('Percentage of payment to refund for valid cancellations (0-100).', 'classflow-pro')]);
+        add_settings_field('refund_processing_fee', __('Retain Processing Fee', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_policies', ['key' => 'refund_processing_fee', 'help' => __('Keep Stripe processing fees when refunding (reduces refund amount).', 'classflow-pro')]);
+        
+        // Late Cancel & No-Show Fees
+        add_settings_field('late_cancel_fee_cents', __('Late Cancel Fee (cents)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_policies', ['key' => 'late_cancel_fee_cents', 'step' => '50', 'help' => __('Fee to charge for late cancellations past the window.', 'classflow-pro')]);
+        add_settings_field('late_cancel_deduct_credit', __('Late Cancel Deduct Credit', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_policies', ['key' => 'late_cancel_deduct_credit', 'help' => __('If enabled, deduct one credit on late cancel.', 'classflow-pro')]);
+        add_settings_field('no_show_fee_cents', __('No-Show Fee (cents)', 'classflow-pro'), [self::class, 'field_number'], 'classflow-pro', 'cfp_policies', ['key' => 'no_show_fee_cents', 'step' => '50', 'help' => __('Fee to charge if marked no-show.', 'classflow-pro')]);
+        add_settings_field('no_show_deduct_credit', __('No-Show Deduct Credit', 'classflow-pro'), [self::class, 'field_checkbox'], 'classflow-pro', 'cfp_policies', ['key' => 'no_show_deduct_credit', 'help' => __('If enabled, deduct one credit on no-show.', 'classflow-pro')]);
 
         // Google Workspace Settings Section
         add_settings_section('cfp_google', __('Google Workspace Integration', 'classflow-pro'), function () {
@@ -350,7 +399,7 @@ class Settings
         $output = is_array($input) ? $input : [];
         foreach ([
             'stripe_publishable_key','stripe_secret_key','stripe_webhook_secret','quickbooks_client_id','quickbooks_client_secret','quickbooks_realm_id','quickbooks_redirect_uri',
-            'template_confirmed_subject','template_canceled_subject','template_rescheduled_subject',
+            'template_confirmed_subject','template_canceled_subject','template_rescheduled_subject','template_giftcard_subject',
             'google_client_id','google_client_secret','google_calendar_id','google_redirect_uri',
             'gmail_sender_email','gmail_sender_name','google_drive_folder_id','google_contacts_group',
             'zoom_account_id','zoom_client_id','zoom_client_secret',
@@ -361,12 +410,13 @@ class Settings
             }
         }
         foreach ([
-            'template_confirmed_body','template_canceled_body','template_rescheduled_body'
+            'template_confirmed_body','template_canceled_body','template_rescheduled_body','template_giftcard_body'
         ] as $k) {
             if (isset($output[$k])) {
                 $output[$k] = wp_kses_post(wp_unslash($output[$k]));
             }
         }
+        $output['giftcard_bcc_admin'] = isset($output['giftcard_bcc_admin']) ? 1 : 0;
         $output['stripe_enable_tax'] = isset($output['stripe_enable_tax']) ? 1 : 0;
         $output['stripe_connect_enabled'] = isset($output['stripe_connect_enabled']) ? 1 : 0;
         $output['platform_fee_percent'] = isset($output['platform_fee_percent']) ? floatval($output['platform_fee_percent']) : 0.0;
@@ -385,6 +435,11 @@ class Settings
         $output['require_login_to_book'] = isset($output['require_login_to_book']) ? 1 : 0;
         $output['auto_create_user_on_booking'] = isset($output['auto_create_user_on_booking']) ? 1 : 0;
         $output['notify_instructor'] = isset($output['notify_instructor']) ? 1 : 0;
+        // Policies
+        $output['late_cancel_fee_cents'] = isset($output['late_cancel_fee_cents']) ? max(0, (int)$output['late_cancel_fee_cents']) : 0;
+        $output['late_cancel_deduct_credit'] = isset($output['late_cancel_deduct_credit']) ? 1 : 0;
+        $output['no_show_fee_cents'] = isset($output['no_show_fee_cents']) ? max(0, (int)$output['no_show_fee_cents']) : 0;
+        $output['no_show_deduct_credit'] = isset($output['no_show_deduct_credit']) ? 1 : 0;
         // Google Workspace checkboxes
         $output['google_calendar_enabled'] = isset($output['google_calendar_enabled']) ? 1 : 0;
         $output['google_calendar_sync_bookings'] = isset($output['google_calendar_sync_bookings']) ? 1 : 0;
@@ -397,6 +452,7 @@ class Settings
         $output['google_contacts_enabled'] = isset($output['google_contacts_enabled']) ? 1 : 0;
         // Google Calendar color (1-11 or empty)
         $output['google_calendar_color'] = isset($output['google_calendar_color']) ? sanitize_text_field($output['google_calendar_color']) : '';
+        $output['qb_item_per_instructor_enable'] = isset($output['qb_item_per_instructor_enable']) ? 1 : 0;
         // Zoom settings
         $output['zoom_enabled'] = isset($output['zoom_enabled']) ? 1 : 0;
         $output['zoom_auto_create'] = isset($output['zoom_auto_create']) ? 1 : 0;

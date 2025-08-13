@@ -43,5 +43,103 @@
     e.preventDefault();
     createBooking();
   });
+
+  // Refund functionality
+  $(document).on('click', '.cfp-refund-btn', function(e) {
+    e.preventDefault();
+    const bookingId = $(this).data('booking-id');
+    const amount = $(this).data('amount');
+    $('#cfp-refund-booking-id').text('#' + bookingId);
+    $('#cfp-refund-original-amount').text(amount);
+    $('#cfp-refund-modal').show();
+    $('#cfp-refund-modal').data('booking-id', bookingId);
+    $('#cfp-refund-modal').data('original-amount', amount);
+  });
+
+  $('#cfp-refund-type').on('change', function() {
+    if ($(this).val() === 'partial') {
+      $('#cfp-partial-amount-wrap').show();
+    } else {
+      $('#cfp-partial-amount-wrap').hide();
+    }
+  });
+
+  $('#cfp-cancel-refund, .cfp-modal-overlay').on('click', function() {
+    $('#cfp-refund-modal').hide();
+    $('#cfp-refund-msg').empty();
+  });
+
+  $('#cfp-process-refund').on('click', async function() {
+    const bookingId = $('#cfp-refund-modal').data('booking-id');
+    const refundType = $('#cfp-refund-type').val();
+    const reason = $('#cfp-refund-reason').val();
+    let refundAmount = null;
+    
+    if (refundType === 'partial') {
+      refundAmount = parseFloat($('#cfp-refund-amount').val()) * 100; // Convert to cents
+      if (!refundAmount || refundAmount <= 0) {
+        $('#cfp-refund-msg').text('Please enter a valid refund amount.');
+        return;
+      }
+    }
+
+    $('#cfp-refund-msg').text('Processing refund...');
+    
+    try {
+      const res = await fetch(CFP_ADMIN.restUrl + 'admin/refund', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          booking_id: bookingId,
+          refund_type: refundType,
+          refund_amount: refundAmount,
+          reason: reason
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        $('#cfp-refund-msg').text(data.message || 'Failed to process refund.');
+        return;
+      }
+      
+      $('#cfp-refund-msg').text('Refund processed successfully. Refreshing...');
+      setTimeout(() => location.reload(), 2000);
+    } catch (error) {
+      $('#cfp-refund-msg').text('Error processing refund: ' + error.message);
+    }
+  });
+
+  // Cancel functionality
+  $(document).on('click', '.cfp-cancel-btn', async function(e) {
+    e.preventDefault();
+    if (!confirm('Are you sure you want to cancel this booking?')) return;
+    
+    const bookingId = $(this).data('booking-id');
+    const $btn = $(this);
+    $btn.prop('disabled', true).text('Cancelling...');
+    
+    try {
+      const res = await fetch(CFP_ADMIN.restUrl + 'admin/cancel', {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ booking_id: bookingId })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        alert(data.message || 'Failed to cancel booking.');
+        $btn.prop('disabled', false).text('Cancel');
+        return;
+      }
+      
+      location.reload();
+    } catch (error) {
+      alert('Error cancelling booking: ' + error.message);
+      $btn.prop('disabled', false).text('Cancel');
+    }
+  });
 })(jQuery);
 

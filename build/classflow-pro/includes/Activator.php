@@ -276,6 +276,61 @@ class Activator
         ) $charset_collate;";
         dbDelta($notes_sql);
 
+        // Gift cards (store prepaid credits purchased via Checkout)
+        $gc_sql = "CREATE TABLE {$wpdb->prefix}cfp_gift_cards (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            code VARCHAR(32) NOT NULL,
+            credits INT NOT NULL,
+            amount_cents BIGINT NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT 'usd',
+            purchaser_email VARCHAR(191) NULL,
+            recipient_email VARCHAR(191) NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'new', -- new|used|void
+            used_by_user_id BIGINT UNSIGNED NULL,
+            used_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY code (code),
+            KEY status (status)
+        ) $charset_collate;";
+        dbDelta($gc_sql);
+
+        // Membership plans (admin-defined) and user memberships
+        $plans_sql = "CREATE TABLE {$wpdb->prefix}cfp_membership_plans (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(191) NOT NULL,
+            description TEXT NULL,
+            credits_per_period INT NOT NULL DEFAULT 0,
+            period VARCHAR(20) NOT NULL DEFAULT 'monthly', -- weekly|monthly
+            stripe_price_id VARCHAR(191) NOT NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY active (active),
+            KEY stripe_price_id (stripe_price_id)
+        ) $charset_collate;";
+        dbDelta($plans_sql);
+
+        $memberships_sql = "CREATE TABLE {$wpdb->prefix}cfp_memberships (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id BIGINT UNSIGNED NOT NULL,
+            plan_id BIGINT UNSIGNED NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'active', -- active|past_due|canceled|trialing
+            stripe_subscription_id VARCHAR(191) NULL,
+            current_period_start DATETIME NULL,
+            current_period_end DATETIME NULL,
+            canceled_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_user_plan_active (user_id, plan_id, status),
+            KEY user_id (user_id),
+            KEY plan_id (plan_id),
+            KEY stripe_subscription_id (stripe_subscription_id)
+        ) $charset_collate;";
+        dbDelta($memberships_sql);
+
         // Add missing performance indexes and define foreign key relationships.
         // Since dbDelta() does not manage FKs, apply them explicitly and ignore errors if they already exist.
         try {
@@ -311,6 +366,9 @@ class Activator
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_classes ADD COLUMN color_hex VARCHAR(7) NULL"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_instructors ADD UNIQUE INDEX uniq_instructors_email (email)"); } catch (\Throwable $e) {}
         try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_private_requests ADD INDEX idx_private_requests_instr_status (instructor_id, status)"); } catch (\Throwable $e) {}
+        // Attendance & roster fields
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ADD COLUMN attendance_status VARCHAR(20) NULL"); } catch (\Throwable $e) {}
+        try { $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_bookings ADD COLUMN check_in_at DATETIME NULL"); } catch (\Throwable $e) {}
 
         // Foreign keys
         try {
@@ -362,12 +420,122 @@ class Activator
                 ON DELETE CASCADE ON UPDATE CASCADE");
         } catch (\Throwable $e) {}
         try {
+            $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cfp_series (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                name VARCHAR(190) NOT NULL,
+                class_id BIGINT UNSIGNED NOT NULL,
+                location_id BIGINT UNSIGNED NULL,
+                instructor_id BIGINT UNSIGNED NULL,
+                description TEXT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                price_cents INT NOT NULL DEFAULT 0,
+                currency VARCHAR(10) NOT NULL DEFAULT 'usd',
+                capacity INT NOT NULL DEFAULT 0,
+                prereq_class_id BIGINT UNSIGNED NULL,
+                prereq_min_completed INT NOT NULL DEFAULT 0,
+                require_intake TINYINT(1) NOT NULL DEFAULT 0,
+                status VARCHAR(20) NOT NULL DEFAULT 'active',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_series_class (class_id),
+                KEY idx_series_dates (start_date, end_date)
+            ) {$charset_collate}");
+        } catch (\Throwable $e) {}
+        try {
+            $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cfp_series_waitlist (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                series_id BIGINT UNSIGNED NOT NULL,
+                user_id BIGINT UNSIGNED NOT NULL,
+                email VARCHAR(190) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+                token VARCHAR(64) NULL,
+                expires_at DATETIME NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_series_user (series_id, user_id),
+                KEY idx_series (series_id)
+            ) {$charset_collate}");
+        } catch (\Throwable $e) {}
+        try {
+            $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cfp_series_sessions (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                series_id BIGINT UNSIGNED NOT NULL,
+                schedule_id BIGINT UNSIGNED NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_series_schedule (series_id, schedule_id),
+                KEY idx_series (series_id)
+            ) {$charset_collate}");
+        } catch (\Throwable $e) {}
+        try {
+            $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cfp_series_enrollments (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                series_id BIGINT UNSIGNED NOT NULL,
+                user_id BIGINT UNSIGNED NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'active',
+                payment_intent_id VARCHAR(100) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_series_user (series_id, user_id),
+                KEY idx_series (series_id),
+                KEY idx_user (user_id)
+            ) {$charset_collate}");
+        } catch (\Throwable $e) {}
+        try {
+            // Foreign keys for series tables
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_series_sessions
+                ADD CONSTRAINT fk_cfp_series_sessions_series
+                FOREIGN KEY (series_id)
+                REFERENCES {$wpdb->prefix}cfp_series(id)
+                ON DELETE CASCADE ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_series_enrollments
+                ADD CONSTRAINT fk_cfp_series_enrollments_series
+                FOREIGN KEY (series_id)
+                REFERENCES {$wpdb->prefix}cfp_series(id)
+                ON DELETE CASCADE ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
             // Private Requests -> Instructors (nullable)
             $wpdb->query("ALTER TABLE {$wpdb->prefix}cfp_private_requests
                 ADD CONSTRAINT fk_cfp_private_requests_instructor
                 FOREIGN KEY (instructor_id)
                 REFERENCES {$wpdb->prefix}cfp_instructors(id)
                 ON DELETE SET NULL ON UPDATE CASCADE");
+        } catch (\Throwable $e) {}
+        try {
+            // Time-off table for instructors
+            $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cfp_instructor_timeoff (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                instructor_id BIGINT UNSIGNED NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                reason VARCHAR(190) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_instructor (instructor_id),
+                KEY idx_dates (start_date, end_date)
+            ) {$charset_collate}");
+        } catch (\Throwable $e) {}
+        try {
+            // Webhook events log for idempotency and retries
+            $wpdb->query("CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cfp_webhook_events (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                provider VARCHAR(40) NOT NULL,
+                event_id VARCHAR(191) NOT NULL,
+                event_type VARCHAR(191) NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'received',
+                retry_count INT NOT NULL DEFAULT 0,
+                last_error TEXT NULL,
+                payload LONGTEXT NULL,
+                received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                processed_at DATETIME NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uniq_provider_event (provider, event_id),
+                KEY idx_status (status)
+            ) {$charset_collate}");
         } catch (\Throwable $e) {}
         try {
             // Resources -> Locations (nullable)
@@ -395,11 +563,42 @@ class Activator
         } catch (\Throwable $e) {}
 
 
-        // Ensure custom Customer role exists
+        // Ensure custom roles exist
         if (!get_role('customer')) {
             add_role('customer', __('Customer', 'classflow-pro'), [
                 'read' => true,
             ]);
+        }
+        if (!get_role('cfp_manager')) {
+            add_role('cfp_manager', __('Studio Manager', 'classflow-pro'), [
+                'read' => true,
+                'cfp_manage' => true,
+                'cfp_manage_schedules' => true,
+                'cfp_manage_bookings' => true,
+                'cfp_checkin_roster' => true,
+                'cfp_manage_customers' => true,
+                'cfp_manage_memberships' => true,
+                'cfp_view_reports' => true,
+            ]);
+        }
+        if (!get_role('cfp_frontdesk')) {
+            add_role('cfp_frontdesk', __('Front Desk', 'classflow-pro'), [
+                'read' => true,
+                'cfp_manage_bookings' => true,
+                'cfp_checkin_roster' => true,
+            ]);
+        }
+        if (!get_role('cfp_instructor')) {
+            add_role('cfp_instructor', __('Instructor', 'classflow-pro'), [
+                'read' => true,
+                'cfp_checkin_roster' => true,
+            ]);
+        }
+        // Ensure administrators inherit all CFP caps
+        if ($admin = get_role('administrator')) {
+            foreach (['cfp_manage','cfp_manage_schedules','cfp_manage_bookings','cfp_checkin_roster','cfp_manage_customers','cfp_manage_memberships','cfp_view_reports'] as $cap) {
+                if (!$admin->has_cap($cap)) { $admin->add_cap($cap); }
+            }
         }
 
         // Default options

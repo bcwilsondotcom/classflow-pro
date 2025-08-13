@@ -17,6 +17,41 @@ class Mailer
         }
         return [$subject, $body];
     }
+
+    public static function gift_card_issued(string $code, int $credits, int $amount_cents, ?string $recipient_email, ?string $purchaser_email): void
+    {
+        if (!$recipient_email) return;
+        $settings = get_option('cfp_settings', []);
+        $site = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+        $redeem_url = home_url('/');
+        $subject_tpl = $settings['template_giftcard_subject'] ?? '[{site}] You received a gift card';
+        $body_tpl = $settings['template_giftcard_body'] ?? (
+            '<p>You have received a gift card for {site}.</p>' .
+            '<p><strong>Credits:</strong> {credits}<br>' .
+            '<strong>Value:</strong> {amount}<br>' .
+            '<strong>Code:</strong> <code>{code}</code></p>' .
+            '<p>Redeem your gift card in your account: <a href="{redeem_url}">{redeem_url}</a></p>' .
+            '<p><small>From: {purchaser_email}</small></p>'
+        );
+        $vars = [
+            '{site}' => $site,
+            '{code}' => esc_html($code),
+            '{credits}' => (string)intval($credits),
+            '{amount}' => '$' . number_format_i18n($amount_cents/100, 2),
+            '{recipient_email}' => esc_html($recipient_email ?? ''),
+            '{purchaser_email}' => esc_html($purchaser_email ?? ''),
+            '{redeem_url}' => esc_url($redeem_url),
+        ];
+        $subject = strtr($subject_tpl, $vars);
+        $body = strtr($body_tpl, $vars);
+        // Optional BCC admin
+        $to = [$recipient_email];
+        if (!empty($settings['giftcard_bcc_admin'])) {
+            $admin_email = get_option('admin_email');
+            if ($admin_email) { $to[] = $admin_email; }
+        }
+        self::send($to, $subject, $body);
+    }
     private static function get_template(string $subject_key, string $body_key, array $vars): array
     {
         $settings = get_option('cfp_settings', []);

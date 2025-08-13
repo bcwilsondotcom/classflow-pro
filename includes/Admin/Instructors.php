@@ -37,8 +37,60 @@ class Instructors
         <a class="button button-small" href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=classflow-pro-instructors&action=delete&id='.$r['id']), 'cfp_delete_instructor_'.$r['id'])); ?>" onclick="return confirm('<?php echo esc_attr__('Are you sure?','classflow-pro'); ?>');"><?php esc_html_e('Delete','classflow-pro'); ?></a></td></tr>
         <?php endforeach; endif; ?></tbody></table>
         <?php $pages = (int)ceil($total/$per); if ($pages>1){ echo '<div class="tablenav bottom"><div class="tablenav-pages">'; echo paginate_links(['base'=>add_query_arg('paged','%#%'),'format'=>'','total'=>$pages,'current'=>$paged]); echo '</div></div>'; } ?>
+        <?php self::render_timeoff_panel(); ?>
         </div>
         <?php
+    }
+
+    private static function render_timeoff_panel(): void
+    {
+        if ($_SERVER['REQUEST_METHOD']==='POST' && isset($_POST['cfp_action']) && $_POST['cfp_action']==='save_timeoff' && check_admin_referer('cfp_save_timeoff')) {
+            self::handle_save_timeoff();
+        }
+        if (isset($_GET['action']) && $_GET['action']==='delete_timeoff' && isset($_GET['id']) && wp_verify_nonce($_GET['_wpnonce'] ?? '', 'cfp_delete_timeoff_' . (int)$_GET['id'])) {
+            self::handle_delete_timeoff((int)$_GET['id']);
+        }
+        global $wpdb; $t=$wpdb->prefix.'cfp_instructor_timeoff'; $inst=$wpdb->prefix.'cfp_instructors';
+        $rows = $wpdb->get_results("SELECT o.*, i.name AS instructor FROM $t o LEFT JOIN $inst i ON i.id=o.instructor_id ORDER BY o.start_date DESC LIMIT 100", ARRAY_A);
+        echo '<h2 style="margin-top:24px;">' . esc_html__('Instructor Time-off', 'classflow-pro') . '</h2>';
+        echo '<form method="post" style="display:flex; gap:8px; align-items:flex-end;">'; wp_nonce_field('cfp_save_timeoff');
+        echo '<input type="hidden" name="cfp_action" value="save_timeoff" />';
+        // Instructor selector
+        $instructors = $wpdb->get_results("SELECT id, name FROM $inst ORDER BY name ASC", ARRAY_A);
+        echo '<label>' . esc_html__('Instructor','classflow-pro') . ' <select name="instructor_id" required><option value="">' . esc_html__('Select','classflow-pro') . '</option>';
+        foreach ($instructors as $i) { echo '<option value="' . (int)$i['id'] . '">' . esc_html($i['name']) . '</option>'; }
+        echo '</select></label>';
+        echo '<label>' . esc_html__('From','classflow-pro') . ' <input type="date" name="start" required></label>';
+        echo '<label>' . esc_html__('To','classflow-pro') . ' <input type="date" name="end" required></label>';
+        echo '<label>' . esc_html__('Reason','classflow-pro') . ' <input type="text" name="reason" class="regular-text"></label>';
+        echo '<button class="button button-primary" type="submit">' . esc_html__('Add Time-off','classflow-pro') . '</button>';
+        echo '</form>';
+        echo '<table class="widefat striped" style="margin-top:12px;"><thead><tr><th>' . esc_html__('Instructor','classflow-pro') . '</th><th>' . esc_html__('From','classflow-pro') . '</th><th>' . esc_html__('To','classflow-pro') . '</th><th>' . esc_html__('Reason','classflow-pro') . '</th><th>' . esc_html__('Actions','classflow-pro') . '</th></tr></thead><tbody>';
+        if (!$rows) echo '<tr><td colspan="5">' . esc_html__('No time-off entries', 'classflow-pro') . '</td></tr>';
+        foreach ($rows as $r) {
+            $del = wp_nonce_url(add_query_arg(['action'=>'delete_timeoff','id'=>(int)$r['id']]), 'cfp_delete_timeoff_' . (int)$r['id']);
+            echo '<tr><td>' . esc_html($r['instructor'] ?: ('#' . $r['instructor_id'])) . '</td><td>' . esc_html($r['start_date']) . '</td><td>' . esc_html($r['end_date']) . '</td><td>' . esc_html($r['reason'] ?: '') . '</td><td><a class="button-link-delete" href="' . esc_url($del) . '">' . esc_html__('Delete','classflow-pro') . '</a></td></tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    private static function handle_save_timeoff(): void
+    {
+        $instructor_id = (int)($_POST['instructor_id'] ?? 0);
+        $start = preg_replace('/[^0-9\-]/','', $_POST['start'] ?? '');
+        $end = preg_replace('/[^0-9\-]/','', $_POST['end'] ?? '');
+        $reason = sanitize_text_field($_POST['reason'] ?? '');
+        if (!$instructor_id || !$start || !$end) return;
+        global $wpdb; $t=$wpdb->prefix.'cfp_instructor_timeoff';
+        $wpdb->insert($t, ['instructor_id'=>$instructor_id, 'start_date'=>$start, 'end_date'=>$end, 'reason'=>$reason], ['%d','%s','%s','%s']);
+        echo '<div class="notice notice-success"><p>' . esc_html__('Time-off saved.', 'classflow-pro') . '</p></div>';
+    }
+
+    private static function handle_delete_timeoff(int $id): void
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_instructor_timeoff';
+        $wpdb->delete($t, ['id'=>$id], ['%d']);
+        echo '<div class="notice notice-success"><p>' . esc_html__('Time-off deleted.', 'classflow-pro') . '</p></div>';
     }
 
     private static function render_form(): void
@@ -50,6 +102,8 @@ class Instructors
         wp_enqueue_style('jquery-ui', 'https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css');
         
         $name = $row['name'] ?? ''; $bio = $row['bio'] ?? ''; $email = $row['email'] ?? ''; $payout = $row['payout_percent'] ?? ''; $stripe = $row['stripe_account_id'] ?? '';
+        $payout_mode = $row['payout_mode'] ?? 'percent'; $payout_flat_cents = isset($row['payout_flat_cents']) ? (int)$row['payout_flat_cents'] : 0;
+        $qb_item_ref = $row['qb_item_ref'] ?? ''; $qb_account_ref = $row['qb_account_ref'] ?? '';
         $weekly = $row['availability_weekly'] ?? ''; $blackouts = $row['blackout_dates'] ?? ''; $thumb = !empty($row['featured_image_id']) ? (int)$row['featured_image_id'] : 0;
         
         // Parse weekly availability JSON
@@ -70,7 +124,16 @@ class Instructors
         <form method="post"><?php wp_nonce_field('cfp_save_instructor'); ?><input type="hidden" name="cfp_action" value="save"/><?php if($id):?><input type="hidden" name="id" value="<?php echo esc_attr((string)$id); ?>"/><?php endif; ?>
         <table class="form-table"><tr><th><label for="cfp_name"><?php esc_html_e('Name','classflow-pro'); ?></label></th><td><input class="regular-text" id="cfp_name" name="name" value="<?php echo esc_attr($name); ?>" required/></td></tr>
         <tr><th><label for="cfp_email"><?php esc_html_e('Email','classflow-pro'); ?></label></th><td><input type="email" id="cfp_email" name="email" value="<?php echo esc_attr($email); ?>" class="regular-text"/></td></tr>
+        <tr><th><label for="cfp_payout_mode"><?php esc_html_e('Payout Mode','classflow-pro'); ?></label></th><td>
+            <select id="cfp_payout_mode" name="payout_mode">
+                <option value="percent" <?php selected($payout_mode,'percent'); ?>><?php esc_html_e('Percent','classflow-pro'); ?></option>
+                <option value="flat" <?php selected($payout_mode,'flat'); ?>><?php esc_html_e('Flat per attendee (cents)','classflow-pro'); ?></option>
+            </select>
+            <input type="number" step="1" min="0" id="cfp_payout_flat" name="payout_flat_cents" value="<?php echo esc_attr((string)$payout_flat_cents); ?>" class="small-text" />
+        </td></tr>
         <tr><th><label for="cfp_payout"><?php esc_html_e('Payout %','classflow-pro'); ?></label></th><td><input type="number" step="0.1" min="0" max="100" id="cfp_payout" name="payout_percent" value="<?php echo esc_attr((string)$payout); ?>"/></td></tr>
+        <tr><th><label for="cfp_qb_item"><?php esc_html_e('QuickBooks Item Ref','classflow-pro'); ?></label></th><td><input id="cfp_qb_item" name="qb_item_ref" value="<?php echo esc_attr($qb_item_ref); ?>" class="regular-text"/></td></tr>
+        <tr><th><label for="cfp_qb_account"><?php esc_html_e('QuickBooks Account Ref','classflow-pro'); ?></label></th><td><input id="cfp_qb_account" name="qb_account_ref" value="<?php echo esc_attr($qb_account_ref); ?>" class="regular-text"/></td></tr>
         <tr><th><label for="cfp_stripe"><?php esc_html_e('Stripe Account','classflow-pro'); ?></label></th><td><input id="cfp_stripe" name="stripe_account_id" value="<?php echo esc_attr($stripe); ?>" class="regular-text"/></td></tr>
         <tr><th><label for="cfp_bio"><?php esc_html_e('Bio','classflow-pro'); ?></label></th><td><?php wp_editor($bio,'cfp_bio',['textarea_rows'=>6]); ?></td></tr>
         
@@ -218,6 +281,10 @@ class Instructors
             'availability_weekly'=>$availability_weekly ?: null,
             'blackout_dates'=>$blackout_dates ?: null,
             'featured_image_id'=>isset($_POST['featured_image_id'])?(int)$_POST['featured_image_id']:null,
+            'payout_mode'=> in_array(($_POST['payout_mode'] ?? 'percent'), ['percent','flat'], true) ? sanitize_text_field($_POST['payout_mode']) : 'percent',
+            'payout_flat_cents'=> isset($_POST['payout_flat_cents']) ? max(0, (int)$_POST['payout_flat_cents']) : null,
+            'qb_item_ref'=> isset($_POST['qb_item_ref']) ? sanitize_text_field($_POST['qb_item_ref']) : null,
+            'qb_account_ref'=> isset($_POST['qb_account_ref']) ? sanitize_text_field($_POST['qb_account_ref']) : null,
         ];
         if ($id) { $repo->update($id,$data); $msg='updated'; } else { $repo->create($data); $msg='created'; }
         wp_safe_redirect(admin_url('admin.php?page=classflow-pro-instructors&message='.$msg)); exit;
@@ -231,4 +298,3 @@ class Instructors
         $repo=new \ClassFlowPro\DB\Repositories\InstructorsRepository(); $repo->delete($id); wp_safe_redirect(admin_url('admin.php?page=classflow-pro-instructors&message=deleted')); exit;
     }
 }
-

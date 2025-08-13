@@ -37,21 +37,69 @@ class Bookings
         echo '</div>';
 
         echo '<h2 style="margin-top:20px;">' . esc_html__('Recent Bookings', 'classflow-pro') . '</h2>';
-        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Class</th><th>Status</th><th>Amount</th><th>Email</th><th>Created</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Class</th><th>Status</th><th>Amount</th><th>Email</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
         foreach ($recent as $r) {
             $amount = number_format_i18n(((int)$r['amount_cents'])/100, 2) . ' ' . strtoupper($r['currency']);
             $title = $r['class_id'] ? \ClassFlowPro\Utils\Entities::class_name((int)$r['class_id']) : '-';
+            $actions = '';
+            
+            // Add refund action for confirmed bookings with payments
+            if ($r['status'] === 'confirmed' && !empty($r['payment_intent_id']) && (int)$r['amount_cents'] > 0) {
+                $actions .= '<button class="button button-small cfp-refund-btn" data-booking-id="' . intval($r['id']) . '" data-amount="' . esc_attr($amount) . '">' . esc_html__('Refund', 'classflow-pro') . '</button> ';
+            }
+            
+            // Add cancel action for confirmed bookings
+            if ($r['status'] === 'confirmed') {
+                $actions .= '<button class="button button-small cfp-cancel-btn" data-booking-id="' . intval($r['id']) . '">' . esc_html__('Cancel', 'classflow-pro') . '</button>';
+            }
+            
+            // Show refund details for refunded bookings
+            if ($r['status'] === 'refunded') {
+                $transactions = $wpdb->prefix . 'cfp_transactions';
+                $refund = $wpdb->get_row($wpdb->prepare("SELECT * FROM $transactions WHERE booking_id = %d AND type = 'refund' ORDER BY created_at DESC LIMIT 1", $r['id']), ARRAY_A);
+                if ($refund) {
+                    $refund_amount = number_format_i18n(abs((int)$refund['amount_cents'])/100, 2) . ' ' . strtoupper($refund['currency']);
+                    $actions .= '<span class="description">' . sprintf(__('Refunded %s', 'classflow-pro'), $refund_amount) . '</span>';
+                }
+            }
+            
             echo '<tr>'
                 . '<td>#' . intval($r['id']) . '</td>'
                 . '<td>' . esc_html($title) . '</td>'
-                . '<td>' . esc_html($r['status']) . '</td>'
+                . '<td><span class="cfp-status-' . esc_attr($r['status']) . '">' . esc_html($r['status']) . '</span></td>'
                 . '<td>' . esc_html($amount) . '</td>'
                 . '<td>' . esc_html($r['customer_email'] ?: '-') . '</td>'
                 . '<td>' . esc_html($r['created_at']) . '</td>'
+                . '<td>' . $actions . '</td>'
                 . '</tr>';
         }
-        if (!$recent) echo '<tr><td colspan="6">' . esc_html__('No bookings yet.', 'classflow-pro') . '</td></tr>';
+        if (!$recent) echo '<tr><td colspan="7">' . esc_html__('No bookings yet.', 'classflow-pro') . '</td></tr>';
         echo '</tbody></table>';
+        
+        // Add refund modal
+        echo '<div id="cfp-refund-modal" style="display:none;">';
+        echo '<div class="cfp-modal-overlay"></div>';
+        echo '<div class="cfp-modal-content" style="background:white;padding:20px;border-radius:8px;max-width:500px;margin:50px auto;position:relative;">';
+        echo '<h3>' . esc_html__('Process Refund', 'classflow-pro') . '</h3>';
+        echo '<p>' . esc_html__('Booking ID:', 'classflow-pro') . ' <strong id="cfp-refund-booking-id"></strong></p>';
+        echo '<p>' . esc_html__('Original Amount:', 'classflow-pro') . ' <strong id="cfp-refund-original-amount"></strong></p>';
+        echo '<p><label>' . esc_html__('Refund Type:', 'classflow-pro') . '<br/>';
+        echo '<select id="cfp-refund-type" class="regular-text">';
+        echo '<option value="full">' . esc_html__('Full Refund', 'classflow-pro') . '</option>';
+        echo '<option value="partial">' . esc_html__('Partial Refund', 'classflow-pro') . '</option>';
+        echo '<option value="credit">' . esc_html__('Studio Credit Only', 'classflow-pro') . '</option>';
+        echo '</select></label></p>';
+        echo '<p id="cfp-partial-amount-wrap" style="display:none;"><label>' . esc_html__('Refund Amount ($):', 'classflow-pro') . '<br/>';
+        echo '<input type="number" id="cfp-refund-amount" step="0.01" min="0" class="regular-text"/></label></p>';
+        echo '<p><label>' . esc_html__('Reason (optional):', 'classflow-pro') . '<br/>';
+        echo '<textarea id="cfp-refund-reason" class="regular-text" rows="3" style="width:100%;"></textarea></label></p>';
+        echo '<p>';
+        echo '<button class="button button-primary" id="cfp-process-refund">' . esc_html__('Process Refund', 'classflow-pro') . '</button> ';
+        echo '<button class="button" id="cfp-cancel-refund">' . esc_html__('Cancel', 'classflow-pro') . '</button>';
+        echo '</p>';
+        echo '<div id="cfp-refund-msg" aria-live="polite"></div>';
+        echo '</div>';
+        echo '</div>';
 
         echo '</div>';
     }

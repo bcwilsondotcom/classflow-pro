@@ -1636,6 +1636,10 @@ class Schedules
                 if ($exists) $has_conflict = true;
             }
             
+            // Check instructor availability/time-off (if assigned)
+            if (!$has_conflict && $instructor_id) {
+                $has_conflict = !self::instructor_is_available($instructor_id, $schedule['start'], $schedule['end'], $timezone);
+            }
             if ($has_conflict) {
                 $conflicts++;
                 continue;
@@ -1686,6 +1690,46 @@ class Schedules
         } else {
             echo '<div class="notice notice-error"><p>' . esc_html__('No schedules were created. Check for conflicts.', 'classflow-pro') . '</p></div>';
         }
+    }
+
+    private static function instructor_is_available(int $instructor_id, string $start_utc, string $end_utc, string $location_tz): bool
+    {
+        global $wpdb; $t=$wpdb->prefix.'cfp_instructors';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT availability_weekly, blackout_dates FROM $t WHERE id=%d", $instructor_id), ARRAY_A);
+        if (!$row) return true; // if no record, don't block
+        $weekly = json_decode((string)($row['availability_weekly'] ?? ''), true) ?: [];
+        $blackouts = json_decode((string)($row['blackout_dates'] ?? ''), true) ?: [];
+        // Convert UTC to local date/time
+        try {
+            $tz = new \DateTimeZone($location_tz ?: 'UTC');
+        } catch (\Throwable $e) { $tz = new \DateTimeZone('UTC'); }
+        $start = new \DateTime($start_utc . ' UTC'); $start->setTimezone($tz);
+        $end = new \DateTime($end_utc . ' UTC'); $end->setTimezone($tz);
+        $local_date = $start->format('Y-m-d');
+        // Blackout exact date match
+        if (in_array($local_date, $blackouts, true)) return false;
+        // Time-off range check from time-off table
+        try {
+            $off_tbl = $wpdb->prefix . 'cfp_instructor_timeoff';
+            $off_count = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $off_tbl WHERE instructor_id=%d AND %s BETWEEN start_date AND end_date", $instructor_id, $local_date));
+            if ($off_count > 0) return false;
+        } catch (\Throwable $e) {}
+        // Weekly availability
+        $map = [1=>'monday',2=>'tuesday',3=>'wednesday',4=>'thursday',5=>'friday',6=>'saturday',7=>'sunday'];
+        $dayKey = $map[(int)$start->format('N')] ?? null;
+        if (!$dayKey) return true;
+        $day = $weekly[$dayKey] ?? null;
+        if (!$day || empty($day['available'])) return false;
+        $startAllowed = $day['start'] ?? '00:00';
+        $endAllowed = $day['end'] ?? '23:59';
+        // Compare times as minutes
+        $toMin = function($hms){ $p=explode(':',$hms); return ((int)$p[0])*60 + ((int)($p[1]??0)); };
+        $startMin = $toMin($start->format('H:i'));
+        $endMin = $toMin($end->format('H:i'));
+        $allowStart = $toMin($startAllowed);
+        $allowEnd = $toMin($endAllowed);
+        // Require class window inside allowed window
+        return ($startMin >= $allowStart) && ($endMin <= $allowEnd);
     }
     
     private static function handle_delete_schedule(): void
